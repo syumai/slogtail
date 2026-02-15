@@ -178,7 +178,9 @@ export class Ingester {
 
     this.resetFlushTimer();
 
-    this.flushing = this.doFlush(batch);
+    // Chain flushes to avoid concurrent insertBatch calls
+    const prev = this.flushing ?? Promise.resolve();
+    this.flushing = prev.then(() => this.doFlush(batch));
   }
 
   private async doFlush(batch: NormalizedLog[]): Promise<void> {
@@ -189,8 +191,6 @@ export class Ingester {
     } catch {
       // Log error but don't crash
       // In production this would go to stderr
-    } finally {
-      this.flushing = null;
     }
   }
 

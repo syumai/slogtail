@@ -5,19 +5,19 @@ import type { AppType } from "../server/app"
 const client = hc<AppType>("/")
 
 export default function App() {
-  const [message, setMessage] = useState("")
+  const [status, setStatus] = useState("")
 
   useEffect(() => {
-    client.api.hello
-      .$get({ query: { name: "lduck" } })
+    client.api.health
+      .$get()
       .then((res) => res.json())
-      .then((data) => setMessage(data.message))
+      .then((data) => setStatus(`Server ${data.status}, uptime: ${data.uptime}s`))
   }, [])
 
   return (
     <div>
       <h1>lduck</h1>
-      <p>{message || "Loading..."}</p>
+      <p>{status || "Loading..."}</p>
     </div>
   )
 }
