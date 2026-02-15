@@ -1,0 +1,35 @@
+{
+  "name": "lduck",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && vite build --ssr src/cli/index.ts",
+    "test": "vitest run",
+    "lint": "oxlint src && tsgo --noEmit",
+    "format": "oxfmt src",
+    "format:check": "oxfmt --check src"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1",
+    "@hono/zod-validator": "^0.5",
+    "hono": "^4",
+    "react": "^19",
+    "react-dom": "^19",
+    "zod": "^3"
+  },
+  "devDependencies": {
+    "@hono/vite-dev-server": "^0.9",
+    "@types/node": "^25.2.3",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@typescript/native-preview": "*",
+    "@vitejs/plugin-react": "^4",
+    "oxfmt": "^0",
+    "oxlint": "^0",
+    "typescript": "^5",
+    "vite": "^6",
+    "vitest": "^3"
+  }
+}

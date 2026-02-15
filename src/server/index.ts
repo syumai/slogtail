@@ -1,0 +1,21 @@
+import { Hono } from "hono"
+import api from "./app"
+
+const app = new Hono()
+app.route("/", api)
+app.get("*", (c) =>
+  c.html(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>lduck</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/client/main.tsx"></script>
+</body>
+</html>`),
+)
+
+export default app
