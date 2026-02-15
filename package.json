@@ -12,6 +12,7 @@
     "format:check": "oxfmt --check src"
   },
   "dependencies": {
+    "@duckdb/node-api": "1.4.4-r.1",
     "@hono/node-server": "^1",
     "@hono/zod-validator": "^0.5",
     "hono": "^4",

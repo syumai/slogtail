@@ -1,0 +1,611 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { LogDatabase } from "./db";
+import type {
+  NormalizedLog,
+  LogQueryParams,
+} from "../types";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeLog(overrides: Partial<NormalizedLog> & { _id: bigint }): NormalizedLog {
+  return {
+    _ingested: new Date("2026-01-15T10:00:00Z"),
+    _raw: JSON.stringify({ message: "test" }),
+    timestamp: new Date("2026-01-15T10:00:00Z"),
+    level: "INFO",
+    message: "test message",
+    service: "api",
+    trace_id: null,
+    host: "localhost",
+    duration_ms: null,
+    source: "default",
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 2.1 Database initialization and table creation
+// ---------------------------------------------------------------------------
+
+describe("LogDatabase - initialization", () => {
+  let db: LogDatabase;
+
+  afterEach(async () => {
+    if (db) {
+      await db.close();
+    }
+  });
+
+  it("initializes in-memory database by default", async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    // Should not throw; DB is ready
+  });
+
+  it("creates logs table with expected columns", async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    const schema = await db.getSchema();
+    const columnNames = schema.map((c) => c.name);
+    expect(columnNames).toEqual([
+      "_id",
+      "_ingested",
+      "_raw",
+      "timestamp",
+      "level",
+      "message",
+      "service",
+      "trace_id",
+      "host",
+      "duration_ms",
+      "source",
+    ]);
+  });
+
+  it("schema returns correct types", async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    const schema = await db.getSchema();
+
+    const idCol = schema.find((c) => c.name === "_id");
+    expect(idCol?.type).toBe("BIGINT");
+    expect(idCol?.nullable).toBe(false); // PRIMARY KEY
+
+    const levelCol = schema.find((c) => c.name === "level");
+    expect(levelCol?.type).toBe("VARCHAR");
+    expect(levelCol?.nullable).toBe(true);
+
+    const durationCol = schema.find((c) => c.name === "duration_ms");
+    expect(durationCol?.type).toBe("DOUBLE");
+
+    const rawCol = schema.find((c) => c.name === "_raw");
+    expect(rawCol?.type).toBe("JSON");
+  });
+
+  it("close shuts down the database", async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    await db.close();
+    // After close, further operations should fail
+    await expect(db.getSchema()).rejects.toThrow();
+    // Prevent afterEach from double-closing
+    db = undefined as unknown as LogDatabase;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2.2 Batch INSERT and eviction
+// ---------------------------------------------------------------------------
+
+describe("LogDatabase - insertBatch", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+  });
+
+  afterEach(async () => {
+    if (db) {
+      await db.close();
+    }
+  });
+
+  it("inserts a single log row", async () => {
+    const log = makeLog({ _id: 1n });
+    await db.insertBatch([log]);
+
+    const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs).toHaveLength(1);
+    expect(result.logs[0]._id).toBe(1n);
+    expect(result.logs[0].level).toBe("INFO");
+    expect(result.logs[0].message).toBe("test message");
+    expect(result.logs[0].service).toBe("api");
+    expect(result.logs[0].source).toBe("default");
+  });
+
+  it("inserts multiple log rows in a batch", async () => {
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO", message: "msg1" }),
+      makeLog({ _id: 2n, level: "ERROR", message: "msg2" }),
+      makeLog({ _id: 3n, level: "DEBUG", message: "msg3" }),
+    ];
+    await db.insertBatch(logs);
+
+    const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(3);
+    expect(result.logs).toHaveLength(3);
+  });
+
+  it("handles null fields correctly", async () => {
+    const log = makeLog({
+      _id: 1n,
+      timestamp: null,
+      level: null,
+      message: null,
+      service: null,
+      trace_id: null,
+      host: null,
+      duration_ms: null,
+    });
+    await db.insertBatch([log]);
+
+    const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
+    expect(result.logs[0].timestamp).toBeNull();
+    expect(result.logs[0].level).toBeNull();
+    expect(result.logs[0].message).toBeNull();
+    expect(result.logs[0].service).toBeNull();
+    expect(result.logs[0].host).toBeNull();
+    expect(result.logs[0].duration_ms).toBeNull();
+  });
+
+  it("preserves _raw JSON data", async () => {
+    const rawJson = { level: "INFO", msg: "hello", extra: { nested: true } };
+    const log = makeLog({ _id: 1n, _raw: JSON.stringify(rawJson) });
+    await db.insertBatch([log]);
+
+    const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
+    expect(result.logs[0]._raw).toEqual(rawJson);
+  });
+});
+
+describe("LogDatabase - evictOldRows", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+  });
+
+  afterEach(async () => {
+    if (db) {
+      await db.close();
+    }
+  });
+
+  it("evicts old rows when exceeding maxRows", async () => {
+    const logs = Array.from({ length: 10 }, (_, i) =>
+      makeLog({ _id: BigInt(i + 1) })
+    );
+    await db.insertBatch(logs);
+
+    await db.evictOldRows(5);
+
+    const result = await db.queryLogs({ limit: 100, offset: 0, order: "asc" });
+    expect(result.total).toBe(5);
+    // Only the latest 5 rows should remain (IDs 6-10)
+    const ids = result.logs.map((l) => l._id);
+    expect(ids).toEqual([6n, 7n, 8n, 9n, 10n]);
+  });
+
+  it("does nothing when row count is within maxRows", async () => {
+    const logs = Array.from({ length: 3 }, (_, i) =>
+      makeLog({ _id: BigInt(i + 1) })
+    );
+    await db.insertBatch(logs);
+
+    await db.evictOldRows(10);
+
+    const result = await db.queryLogs({ limit: 100, offset: 0, order: "asc" });
+    expect(result.total).toBe(3);
+  });
+
+  it("evicts to exact maxRows count", async () => {
+    const logs = Array.from({ length: 20 }, (_, i) =>
+      makeLog({ _id: BigInt(i + 1) })
+    );
+    await db.insertBatch(logs);
+
+    await db.evictOldRows(1);
+
+    const result = await db.queryLogs({ limit: 100, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0]._id).toBe(20n);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2.3 Query, aggregation, facets, and custom SQL
+// ---------------------------------------------------------------------------
+
+describe("LogDatabase - queryLogs filters", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO", service: "api", message: "request started", source: "proc-1", timestamp: new Date("2026-01-15T10:00:00Z") }),
+      makeLog({ _id: 2n, level: "ERROR", service: "api", message: "connection failed", source: "proc-1", timestamp: new Date("2026-01-15T10:01:00Z") }),
+      makeLog({ _id: 3n, level: "WARN", service: "worker", message: "slow query detected", source: "proc-2", timestamp: new Date("2026-01-15T10:02:00Z") }),
+      makeLog({ _id: 4n, level: "INFO", service: "worker", message: "task completed", source: "proc-2", timestamp: new Date("2026-01-15T10:03:00Z") }),
+      makeLog({ _id: 5n, level: "ERROR", service: "api", message: "timeout error", source: "proc-1", timestamp: new Date("2026-01-15T10:04:00Z") }),
+    ];
+    await db.insertBatch(logs);
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("filters by level", async () => {
+    const result = await db.queryLogs({ level: "ERROR", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(2);
+    expect(result.logs.every((l) => l.level === "ERROR")).toBe(true);
+  });
+
+  it("filters by service", async () => {
+    const result = await db.queryLogs({ service: "worker", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(2);
+    expect(result.logs.every((l) => l.service === "worker")).toBe(true);
+  });
+
+  it("filters by source", async () => {
+    const result = await db.queryLogs({ source: "proc-1", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(3);
+    expect(result.logs.every((l) => l.source === "proc-1")).toBe(true);
+  });
+
+  it("filters by search (case-insensitive substring)", async () => {
+    const result = await db.queryLogs({ search: "error", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0].message).toBe("timeout error");
+  });
+
+  it("filters by time range", async () => {
+    const result = await db.queryLogs({
+      startTime: new Date("2026-01-15T10:01:00Z"),
+      endTime: new Date("2026-01-15T10:03:00Z"),
+      limit: 10,
+      offset: 0,
+      order: "asc",
+    });
+    expect(result.total).toBe(3);
+  });
+
+  it("combines multiple filters with AND", async () => {
+    const result = await db.queryLogs({
+      level: "ERROR",
+      service: "api",
+      limit: 10,
+      offset: 0,
+      order: "asc",
+    });
+    expect(result.total).toBe(2);
+  });
+
+  it("respects limit and offset", async () => {
+    const result = await db.queryLogs({ limit: 2, offset: 1, order: "asc" });
+    expect(result.total).toBe(5); // Total is all matching
+    expect(result.logs).toHaveLength(2);
+    expect(result.logs[0]._id).toBe(2n); // Second row (offset=1)
+  });
+
+  it("orders by timestamp DESC", async () => {
+    const result = await db.queryLogs({ limit: 10, offset: 0, order: "desc" });
+    expect(result.logs[0]._id).toBe(5n); // Latest timestamp first
+    expect(result.logs[4]._id).toBe(1n);
+  });
+
+  it("orders by timestamp ASC", async () => {
+    const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
+    expect(result.logs[0]._id).toBe(1n); // Earliest timestamp first
+    expect(result.logs[4]._id).toBe(5n);
+  });
+});
+
+describe("LogDatabase - getStats", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("returns correct stats for populated database", async () => {
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO", timestamp: new Date("2026-01-15T10:00:00Z") }),
+      makeLog({ _id: 2n, level: "ERROR", timestamp: new Date("2026-01-15T10:01:00Z") }),
+      makeLog({ _id: 3n, level: "WARN", timestamp: new Date("2026-01-15T10:02:00Z") }),
+      makeLog({ _id: 4n, level: "ERROR", timestamp: new Date("2026-01-15T10:03:00Z") }),
+      makeLog({ _id: 5n, level: "FATAL", timestamp: new Date("2026-01-15T10:04:00Z") }),
+    ];
+    await db.insertBatch(logs);
+
+    const stats = await db.getStats();
+    expect(stats.total).toBe(5);
+    expect(stats.byLevel).toEqual({
+      INFO: 1,
+      ERROR: 2,
+      WARN: 1,
+      FATAL: 1,
+    });
+    // errorRate = (ERROR + FATAL) / total
+    expect(stats.errorRate).toBeCloseTo(0.6);
+    expect(stats.timeRange.min).toEqual(new Date("2026-01-15T10:00:00Z"));
+    expect(stats.timeRange.max).toEqual(new Date("2026-01-15T10:04:00Z"));
+  });
+
+  it("returns empty stats for empty database", async () => {
+    const stats = await db.getStats();
+    expect(stats.total).toBe(0);
+    expect(stats.byLevel).toEqual({});
+    expect(stats.errorRate).toBe(0);
+    expect(stats.timeRange.min).toBeNull();
+    expect(stats.timeRange.max).toBeNull();
+  });
+
+  it("filters stats by source", async () => {
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO", source: "proc-1" }),
+      makeLog({ _id: 2n, level: "ERROR", source: "proc-1" }),
+      makeLog({ _id: 3n, level: "WARN", source: "proc-2" }),
+    ];
+    await db.insertBatch(logs);
+
+    const stats = await db.getStats({ source: "proc-1" });
+    expect(stats.total).toBe(2);
+    expect(stats.byLevel).toEqual({ INFO: 1, ERROR: 1 });
+  });
+});
+
+describe("LogDatabase - getFacetDistribution", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO", service: "api", _raw: JSON.stringify({ level: "INFO", metadata: { region: "us-east" } }) }),
+      makeLog({ _id: 2n, level: "ERROR", service: "api", _raw: JSON.stringify({ level: "ERROR", metadata: { region: "us-east" } }) }),
+      makeLog({ _id: 3n, level: "INFO", service: "worker", _raw: JSON.stringify({ level: "INFO", metadata: { region: "eu-west" } }) }),
+      makeLog({ _id: 4n, level: "WARN", service: "worker", _raw: JSON.stringify({ level: "WARN", metadata: { region: "us-east" } }) }),
+    ];
+    await db.insertBatch(logs);
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("returns facet distribution for a standard column", async () => {
+    const dist = await db.getFacetDistribution("level", null, {});
+    expect(dist.field).toBe("level");
+    expect(dist.values).toHaveLength(3);
+
+    // Should be sorted by count DESC
+    const infoCount = dist.values.find((v) => v.value === "INFO");
+    expect(infoCount?.count).toBe(2);
+
+    const errorCount = dist.values.find((v) => v.value === "ERROR");
+    expect(errorCount?.count).toBe(1);
+  });
+
+  it("returns facet distribution for a nested JSON path", async () => {
+    const dist = await db.getFacetDistribution("metadata.region", "metadata.region", {});
+    expect(dist.field).toBe("metadata.region");
+
+    const usEast = dist.values.find((v) => v.value === "us-east");
+    expect(usEast?.count).toBe(3);
+
+    const euWest = dist.values.find((v) => v.value === "eu-west");
+    expect(euWest?.count).toBe(1);
+  });
+
+  it("applies filters to facet distribution", async () => {
+    const dist = await db.getFacetDistribution("level", null, { service: "api" });
+    expect(dist.values).toHaveLength(2);
+    // Only logs with service=api: INFO(1), ERROR(1)
+    expect(dist.values.find((v) => v.value === "INFO")?.count).toBe(1);
+    expect(dist.values.find((v) => v.value === "ERROR")?.count).toBe(1);
+  });
+});
+
+describe("LogDatabase - executeQuery", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO" }),
+      makeLog({ _id: 2n, level: "ERROR" }),
+    ];
+    await db.insertBatch(logs);
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("executes a SELECT query", async () => {
+    const result = await db.executeQuery("SELECT _id, level FROM logs ORDER BY _id");
+    expect(result.columns).toEqual(["_id", "level"]);
+    expect(result.rows).toHaveLength(2);
+  });
+
+  it("executes a WITH query", async () => {
+    const result = await db.executeQuery(
+      "WITH cte AS (SELECT level, COUNT(*) as cnt FROM logs GROUP BY level) SELECT * FROM cte ORDER BY cnt DESC"
+    );
+    expect(result.columns).toEqual(["level", "cnt"]);
+    expect(result.rows.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("executes an EXPLAIN query", async () => {
+    const result = await db.executeQuery("EXPLAIN SELECT * FROM logs");
+    expect(result.columns.length).toBeGreaterThan(0);
+  });
+
+  it("rejects DELETE statements", async () => {
+    await expect(db.executeQuery("DELETE FROM logs")).rejects.toThrow();
+  });
+
+  it("rejects INSERT statements", async () => {
+    await expect(
+      db.executeQuery("INSERT INTO logs (_id) VALUES (99)")
+    ).rejects.toThrow();
+  });
+
+  it("rejects DROP statements", async () => {
+    await expect(db.executeQuery("DROP TABLE logs")).rejects.toThrow();
+  });
+
+  it("rejects UPDATE statements", async () => {
+    await expect(
+      db.executeQuery("UPDATE logs SET level = 'FATAL'")
+    ).rejects.toThrow();
+  });
+
+  it("allows case-insensitive SELECT", async () => {
+    const result = await db.executeQuery("select _id from logs");
+    expect(result.rows.length).toBeGreaterThan(0);
+  });
+
+  it("allows SELECT with leading whitespace", async () => {
+    const result = await db.executeQuery("  SELECT _id FROM logs");
+    expect(result.rows.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2.4 Export functionality
+// ---------------------------------------------------------------------------
+
+describe("LogDatabase - exportLogs", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+
+    const logs = [
+      makeLog({
+        _id: 1n,
+        level: "INFO",
+        service: "api",
+        message: "request started",
+        timestamp: new Date("2026-01-15T10:00:00Z"),
+        _raw: JSON.stringify({ level: "INFO", message: "request started" }),
+      }),
+      makeLog({
+        _id: 2n,
+        level: "ERROR",
+        service: "api",
+        message: "connection failed",
+        timestamp: new Date("2026-01-15T10:01:00Z"),
+        _raw: JSON.stringify({ level: "ERROR", message: "connection failed" }),
+      }),
+      makeLog({
+        _id: 3n,
+        level: "WARN",
+        service: "worker",
+        message: "slow query",
+        timestamp: new Date("2026-01-15T10:02:00Z"),
+        _raw: JSON.stringify({ level: "WARN", message: "slow query" }),
+      }),
+    ];
+    await db.insertBatch(logs);
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("exports all logs as CSV", async () => {
+    const stream = await db.exportLogs(
+      { limit: 100, offset: 0, order: "asc" },
+      "csv"
+    );
+    const text = await streamToString(stream);
+    // CSV should have a header line and data lines
+    const lines = text.trim().split("\n");
+    expect(lines.length).toBe(4); // 1 header + 3 data rows
+    // Header should contain column names
+    expect(lines[0]).toContain("_id");
+    expect(lines[0]).toContain("level");
+    expect(lines[0]).toContain("message");
+  });
+
+  it("exports filtered logs as CSV", async () => {
+    const stream = await db.exportLogs(
+      { level: "ERROR", limit: 100, offset: 0, order: "asc" },
+      "csv"
+    );
+    const text = await streamToString(stream);
+    const lines = text.trim().split("\n");
+    expect(lines.length).toBe(2); // 1 header + 1 data row
+  });
+
+  it("exports all logs as JSON", async () => {
+    const stream = await db.exportLogs(
+      { limit: 100, offset: 0, order: "asc" },
+      "json"
+    );
+    const text = await streamToString(stream);
+    const data = JSON.parse(text);
+    expect(Array.isArray(data)).toBe(true);
+    expect(data).toHaveLength(3);
+    expect(data[0]).toHaveProperty("_id");
+    expect(data[0]).toHaveProperty("level");
+    expect(data[0]).toHaveProperty("message");
+  });
+
+  it("exports filtered logs as JSON", async () => {
+    const stream = await db.exportLogs(
+      { service: "worker", limit: 100, offset: 0, order: "asc" },
+      "json"
+    );
+    const text = await streamToString(stream);
+    const data = JSON.parse(text);
+    expect(data).toHaveLength(1);
+    expect(data[0].service).toBe("worker");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+async function streamToString(stream: ReadableStream<Uint8Array>): Promise<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let result = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    result += decoder.decode(value, { stream: true });
+  }
+  result += decoder.decode();
+  return result;
+}
