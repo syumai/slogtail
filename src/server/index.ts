@@ -1,10 +1,12 @@
 import { Hono } from "hono"
 import api from "./app"
 
-const app = new Hono()
-app.route("/", api)
-app.get("*", (c) =>
-  c.html(`<!DOCTYPE html>
+export function createApp(scriptSrc: string, setup?: (app: Hono) => void) {
+  const app = new Hono()
+  app.route("/", api)
+  setup?.(app)
+  app.get("*", (c) =>
+    c.html(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -13,9 +15,11 @@ app.get("*", (c) =>
 </head>
 <body>
   <div id="root"></div>
-  <script type="module" src="/src/client/main.tsx"></script>
+  <script type="module" src="${scriptSrc}"></script>
 </body>
 </html>`),
-)
+  )
+  return app
+}
 
-export default app
+export default createApp("/src/client/main.tsx")
