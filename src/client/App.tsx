@@ -2,6 +2,7 @@ import { FilterProvider } from "./store";
 import { SearchBar } from "./components/SearchBar";
 import { StatsBar } from "./components/StatsBar";
 import { LogViewer } from "./components/LogViewer";
+import { FacetSidebar } from "./components/FacetSidebar";
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -33,6 +34,19 @@ const titleStyle: React.CSSProperties = {
   margin: 0,
 };
 
+const bodyStyle: React.CSSProperties = {
+  display: "flex",
+  flex: 1,
+  overflow: "hidden",
+};
+
+const mainContentStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  flex: 1,
+  overflow: "hidden",
+};
+
 // ---------------------------------------------------------------------------
 // AppContent - uses filter context
 // ---------------------------------------------------------------------------
@@ -45,7 +59,12 @@ function AppContent() {
       </header>
       <SearchBar />
       <StatsBar />
-      <LogViewer />
+      <div style={bodyStyle}>
+        <FacetSidebar />
+        <div style={mainContentStyle}>
+          <LogViewer />
+        </div>
+      </div>
     </div>
   );
 }
