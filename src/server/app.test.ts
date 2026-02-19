@@ -265,6 +265,24 @@ describe("GET /api/logs", () => {
     const res = await logsApp.request("/api/logs?order=random");
     expect(res.status).toBe(400);
   });
+
+  it("combines multiple filters (level + service + source)", async () => {
+    const res = await logsApp.request("/api/logs?level=ERROR&service=api&source=proc-1");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.total).toBe(2);
+    expect(
+      body.logs.every(
+        (l: { level: string; service: string; source: string }) =>
+          l.level === "ERROR" && l.service === "api" && l.source === "proc-1"
+      )
+    ).toBe(true);
+  });
+
+  it("returns 400 for invalid startTime format", async () => {
+    const res = await logsApp.request("/api/logs?startTime=not-a-date");
+    expect(res.status).toBe(400);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -373,6 +391,39 @@ describe("POST /api/query", () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
+  });
+
+  it("rejects UPDATE with 403", async () => {
+    const res = await queryApp.request("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sql: "UPDATE logs SET level = 'FATAL'" }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error.code).toBe("FORBIDDEN_SQL");
+  });
+
+  it("rejects ALTER TABLE with 403", async () => {
+    const res = await queryApp.request("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sql: "ALTER TABLE logs ADD COLUMN extra VARCHAR" }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error.code).toBe("FORBIDDEN_SQL");
+  });
+
+  it("rejects TRUNCATE with 403", async () => {
+    const res = await queryApp.request("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sql: "TRUNCATE TABLE logs" }),
+    });
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error.code).toBe("FORBIDDEN_SQL");
   });
 });
 

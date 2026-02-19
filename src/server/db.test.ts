@@ -93,6 +93,60 @@ describe("LogDatabase - initialization", () => {
     // Prevent afterEach from double-closing
     db = undefined as unknown as LogDatabase;
   });
+
+  it("creates indexes on level, timestamp, service, and source columns", async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+
+    // Query DuckDB metadata to verify indexes exist
+    const result = await db.executeQuery(
+      "SELECT index_name FROM duckdb_indexes() WHERE table_name = 'logs' ORDER BY index_name"
+    );
+    const indexNames = result.rows.map((row) => row[0]);
+    expect(indexNames).toContain("idx_level");
+    expect(indexNames).toContain("idx_ts");
+    expect(indexNames).toContain("idx_service");
+    expect(indexNames).toContain("idx_source");
+  });
+
+  it("initializes with file persistence mode", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "lduck-test-"));
+    const dbPath = path.join(tmpDir, "test.duckdb");
+
+    try {
+      db = new LogDatabase();
+      await db.initialize(dbPath);
+
+      // Insert data
+      const log = makeLog({ _id: 1n, message: "persisted" });
+      await db.insertBatch([log]);
+
+      // Verify data was written
+      const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
+      expect(result.total).toBe(1);
+      expect(result.logs[0].message).toBe("persisted");
+
+      await db.close();
+
+      // Reopen and verify data persists
+      db = new LogDatabase();
+      await db.initialize(dbPath);
+      const result2 = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
+      expect(result2.total).toBe(1);
+      expect(result2.logs[0].message).toBe("persisted");
+    } finally {
+      // Cleanup
+      try {
+        if (db) await db.close();
+      } catch { /* ignore */ }
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      db = undefined as unknown as LogDatabase;
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -427,6 +481,31 @@ describe("LogDatabase - getFacetDistribution", () => {
     // Only logs with service=api: INFO(1), ERROR(1)
     expect(dist.values.find((v) => v.value === "INFO")?.count).toBe(1);
     expect(dist.values.find((v) => v.value === "ERROR")?.count).toBe(1);
+  });
+
+  it("applies source filter to facet distribution", async () => {
+    // First, re-insert with distinct sources
+    const sourceDb = new LogDatabase();
+    await sourceDb.initialize(":memory:");
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO", source: "proc-a" }),
+      makeLog({ _id: 2n, level: "ERROR", source: "proc-a" }),
+      makeLog({ _id: 3n, level: "INFO", source: "proc-b" }),
+    ];
+    await sourceDb.insertBatch(logs);
+
+    const dist = await sourceDb.getFacetDistribution("level", null, { source: "proc-a" });
+    expect(dist.values).toHaveLength(2);
+    expect(dist.values.find((v) => v.value === "INFO")?.count).toBe(1);
+    expect(dist.values.find((v) => v.value === "ERROR")?.count).toBe(1);
+
+    await sourceDb.close();
+  });
+
+  it("returns empty values array for facet with no matching data", async () => {
+    const dist = await db.getFacetDistribution("level", null, { service: "nonexistent" });
+    expect(dist.field).toBe("level");
+    expect(dist.values).toHaveLength(0);
   });
 });
 

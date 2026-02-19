@@ -798,3 +798,189 @@ describe("Ingester - database integration", () => {
     expect(result.logs[0]._raw).toEqual(rawObj);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Non-object JSON values (arrays, primitives) are skipped
+// ---------------------------------------------------------------------------
+
+describe("Ingester - non-object JSON values are skipped", () => {
+  let db: LogDatabase;
+  let ingester: Ingester;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    ingester = new Ingester(db, defaultOptions);
+  });
+
+  afterEach(async () => {
+    await ingester.stop();
+    await db.close();
+  });
+
+  it("skips JSON arrays", async () => {
+    const lines = [
+      "[1, 2, 3]",
+      JSON.stringify({ message: "valid" }),
+    ];
+    const stream = createReadableFromLines(lines);
+
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.start(stream);
+    const batch = await batchPromise;
+
+    expect(batch).toHaveLength(1);
+    expect(batch[0].message).toBe("valid");
+  });
+
+  it("skips JSON primitive values (numbers, strings, booleans, null)", async () => {
+    const lines = [
+      "42",
+      '"just a string"',
+      "true",
+      "null",
+      JSON.stringify({ message: "valid" }),
+    ];
+    const stream = createReadableFromLines(lines);
+
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.start(stream);
+    const batch = await batchPromise;
+
+    expect(batch).toHaveLength(1);
+    expect(batch[0].message).toBe("valid");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Additional field alias coverage
+// ---------------------------------------------------------------------------
+
+describe("Ingester - additional field alias mappings", () => {
+  let db: LogDatabase;
+  let ingester: Ingester;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    ingester = new Ingester(db, defaultOptions);
+  });
+
+  afterEach(async () => {
+    await ingester.stop();
+    await db.close();
+  });
+
+  it("maps 'datetime' alias to timestamp", async () => {
+    const lines = [
+      JSON.stringify({ datetime: "2026-03-01T12:00:00Z", message: "dt alias" }),
+    ];
+    const stream = createReadableFromLines(lines);
+
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.start(stream);
+    const batch = await batchPromise;
+
+    expect(batch[0].timestamp).toEqual(new Date("2026-03-01T12:00:00Z"));
+  });
+
+  it("maps 'loglevel' and 'priority' aliases to level", async () => {
+    const lines = [
+      JSON.stringify({ loglevel: "DEBUG", message: "loglevel alias" }),
+      JSON.stringify({ priority: "FATAL", message: "priority alias" }),
+    ];
+    const stream = createReadableFromLines(lines);
+
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.start(stream);
+    const batch = await batchPromise;
+
+    expect(batch[0].level).toBe("DEBUG");
+    expect(batch[1].level).toBe("FATAL");
+  });
+
+  it("maps 'text' alias to message", async () => {
+    const lines = [
+      JSON.stringify({ text: "text body content" }),
+    ];
+    const stream = createReadableFromLines(lines);
+
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.start(stream);
+    const batch = await batchPromise;
+
+    expect(batch[0].message).toBe("text body content");
+  });
+
+  it("maps 'component' and 'logger' aliases to service", async () => {
+    const lines = [
+      JSON.stringify({ component: "auth-module", message: "component alias" }),
+      JSON.stringify({ logger: "request-logger", message: "logger alias" }),
+    ];
+    const stream = createReadableFromLines(lines);
+
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.start(stream);
+    const batch = await batchPromise;
+
+    expect(batch[0].service).toBe("auth-module");
+    expect(batch[1].service).toBe("request-logger");
+  });
+
+  it("maps 'correlation_id' alias to trace_id", async () => {
+    const lines = [
+      JSON.stringify({ correlation_id: "corr-789", message: "corr alias" }),
+    ];
+    const stream = createReadableFromLines(lines);
+
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.start(stream);
+    const batch = await batchPromise;
+
+    expect(batch[0].trace_id).toBe("corr-789");
+  });
+
+  it("uses first matching alias when multiple aliases are present", async () => {
+    const lines = [
+      JSON.stringify({
+        timestamp: "2026-01-01T00:00:00Z",
+        ts: "2026-02-02T00:00:00Z",
+        level: "INFO",
+        severity: "ERROR",
+      }),
+    ];
+    const stream = createReadableFromLines(lines);
+
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.start(stream);
+    const batch = await batchPromise;
+
+    // The first resolved alias wins (object iteration order: timestamp resolves first)
+    expect(batch[0].timestamp).toEqual(new Date("2026-01-01T00:00:00Z"));
+    expect(batch[0].level).toBe("INFO");
+  });
+});
