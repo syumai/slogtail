@@ -1,30 +1,58 @@
-import { useEffect, useState } from "react";
-import { client } from "./api";
-import { FilterProvider, useFilters } from "./store";
+import { FilterProvider } from "./store";
+import { SearchBar } from "./components/SearchBar";
+import { StatsBar } from "./components/StatsBar";
+import { LogViewer } from "./components/LogViewer";
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
+const appStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  height: "100vh",
+  backgroundColor: "#0f0f23",
+  color: "#d0d0e0",
+  fontFamily:
+    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
+};
+
+const headerStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  padding: "8px 16px",
+  backgroundColor: "#0a0a1a",
+  borderBottom: "1px solid #2a2a4a",
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: "18px",
+  fontWeight: "bold",
+  color: "#e0e0ff",
+  margin: 0,
+};
+
+// ---------------------------------------------------------------------------
+// AppContent - uses filter context
+// ---------------------------------------------------------------------------
 
 function AppContent() {
-  const [status, setStatus] = useState("");
-  const [filters] = useFilters();
-
-  useEffect(() => {
-    client.api.health
-      .$get()
-      .then((res) => res.json())
-      .then((data) => setStatus(`Server ${data.status}, uptime: ${data.uptime}s`))
-      .catch(() => setStatus("Failed to connect"));
-  }, []);
-
   return (
-    <div>
-      <h1>lduck</h1>
-      <p>{status || "Loading..."}</p>
-      <p>
-        Order: {filters.order} | Limit: {filters.limit} | Live tail:{" "}
-        {filters.isLiveTail ? "ON" : "OFF"}
-      </p>
+    <div style={appStyle}>
+      <header style={headerStyle}>
+        <h1 style={titleStyle}>lduck</h1>
+      </header>
+      <SearchBar />
+      <StatsBar />
+      <LogViewer />
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// App - wraps with providers
+// ---------------------------------------------------------------------------
 
 export default function App() {
   return (
