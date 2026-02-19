@@ -3,6 +3,7 @@ import { SearchBar } from "./components/SearchBar";
 import { StatsBar } from "./components/StatsBar";
 import { LogViewer } from "./components/LogViewer";
 import { FacetSidebar } from "./components/FacetSidebar";
+import { ExportButton } from "./components/ExportButton";
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -56,6 +57,7 @@ function AppContent() {
     <div style={appStyle}>
       <header style={headerStyle}>
         <h1 style={titleStyle}>lduck</h1>
+        <ExportButton />
       </header>
       <SearchBar />
       <StatsBar />
