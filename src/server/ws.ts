@@ -25,6 +25,12 @@ export function matchesFilter(log: NormalizedLog, filter: WSFilter): boolean {
   if (filter.source !== undefined && log.source !== filter.source) {
     return false;
   }
+  if (filter.search !== undefined && filter.search !== "") {
+    const needle = filter.search.toLowerCase();
+    if (!log.message?.toLowerCase().includes(needle)) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -169,6 +175,9 @@ export class WSHandler {
     }
     if (typeof filterObj.source === "string") {
       filter.source = filterObj.source;
+    }
+    if (typeof filterObj.search === "string") {
+      filter.search = filterObj.search;
     }
 
     this.clients.set(ws, filter);

@@ -139,6 +139,7 @@ export type WSFilter = {
   level?: LogLevel;
   service?: string;
   source?: string;
+  search?: string;
 };
 
 // Client -> Server

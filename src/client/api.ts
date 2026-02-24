@@ -294,7 +294,7 @@ export type WSMessage = WSLogMessage | WSStatsMessage;
 export interface UseWebSocketOptions {
   onLogs?(logs: SerializedLogEntry[]): void;
   onStats?(stats: SerializedLogStats): void;
-  filter?: { level?: string; service?: string; source?: string };
+  filter?: { level?: string; service?: string; source?: string; search?: string };
   enabled?: boolean;
 }
 

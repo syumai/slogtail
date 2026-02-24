@@ -163,8 +163,9 @@ export function LogViewer() {
       level: filters.level,
       service: filters.service,
       source: filters.source,
+      search: filters.search,
     }),
-    [filters.level, filters.service, filters.source],
+    [filters.level, filters.service, filters.source, filters.search],
   );
 
   const { isConnected } = useWebSocket({
@@ -209,10 +210,26 @@ export function LogViewer() {
     actions.toggleLiveTail();
   }, [actions]);
 
-  // When live tail is on: use WebSocket logs if connected, otherwise use polled API logs
-  const displayLogs = filters.isLiveTail
-    ? (isConnected ? liveLogs : apiLogs)
-    : apiLogs;
+  // When live tail is on: use WebSocket logs if connected, otherwise use polled API logs.
+  // Apply client-side filtering for live tail logs to ensure all active filters are respected.
+  const displayLogs = useMemo(() => {
+    const baseLogs = filters.isLiveTail
+      ? (isConnected ? liveLogs : apiLogs)
+      : apiLogs;
+
+    if (!filters.isLiveTail || !isConnected) return baseLogs;
+
+    return baseLogs.filter((log) => {
+      if (filters.level && log.level !== filters.level) return false;
+      if (filters.service && log.service !== filters.service) return false;
+      if (filters.source && log.source !== filters.source) return false;
+      if (filters.search) {
+        const needle = filters.search.toLowerCase();
+        if (!log.message?.toLowerCase().includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.source, filters.search]);
 
   return (
     <div style={containerStyle}>

@@ -206,7 +206,7 @@ export function FacetSidebar() {
       switch (field) {
         case "level":
           actions.setLevel(
-            value as
+            (value ?? undefined) as
               | "DEBUG"
               | "INFO"
               | "WARN"
