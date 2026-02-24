@@ -124,6 +124,8 @@ export class Ingester {
 
     if (this.buffer.length >= this.options.batchSize) {
       this.flushBuffer();
+    } else if (this.flushTimer === null && !this.stopped) {
+      this.resetFlushTimer();
     }
   }
 
