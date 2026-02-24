@@ -1,3 +1,4 @@
+import module from "node:module"
 import { defineConfig } from "vite"
 import react from "@vitejs/plugin-react"
 import devServer from "@hono/vite-dev-server"
@@ -5,10 +6,25 @@ import devServer from "@hono/vite-dev-server"
 export default defineConfig(({ command, isSsrBuild }) => ({
   plugins: [
     !isSsrBuild ? react() : null,
-    command === "serve" ? devServer({ entry: "src/server/index.ts" }) : null,
+    command === "serve" ? devServer({ entry: "src/server/index.tsx" }) : null,
   ].filter(Boolean),
+  ssr: {
+    target: "node",
+    external: ["@duckdb/node-api"],
+    noExternal: ["vite-ssr-components"],
+  },
   build: isSsrBuild
-    ? { outDir: "dist", emptyOutDir: false }
+    ? {
+        outDir: "dist",
+        emptyOutDir: false,
+        rollupOptions: {
+          external: [
+            /^@duckdb/,
+            ...module.builtinModules,
+            ...module.builtinModules.map((m) => `node:${m}`),
+          ],
+        },
+      }
     : {
         outDir: "dist",
         emptyOutDir: true,

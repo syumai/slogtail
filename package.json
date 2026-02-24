@@ -32,6 +32,7 @@
     "oxlint": "^0",
     "typescript": "^5",
     "vite": "^6",
+    "vite-ssr-components": "^0.5.2",
     "vitest": "^3"
   }
 }
