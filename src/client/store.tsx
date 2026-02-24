@@ -23,7 +23,7 @@ const DEFAULT_FILTER_STATE: FilterState = {
   limit: 200,
   offset: 0,
   order: "desc",
-  isLiveTail: false,
+  isLiveTail: true,
 };
 
 // ---------------------------------------------------------------------------

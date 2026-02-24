@@ -3,15 +3,13 @@ import { randomUUID } from "node:crypto";
 
 const { values } = parseArgs({
   options: {
-    count: { type: "string", short: "n", default: "100" },
     url: { type: "string", default: "http://localhost:5173/api/ingest" },
     "batch-size": { type: "string", default: "5" },
-    interval: { type: "string", default: "500" },
+    interval: { type: "string", default: "750" },
   },
   strict: true,
 });
 
-const count = parseInt(values.count!, 10);
 const url = values.url!;
 const batchSize = parseInt(values["batch-size"]!, 10);
 const intervalMs = parseInt(values.interval!, 10);
@@ -71,11 +69,7 @@ function generateLog() {
 let emitted = 0;
 
 async function emitBatch() {
-  if (emitted >= count) return;
-
-  const remaining = count - emitted;
-  const size = Math.min(batchSize, remaining);
-  const batch = Array.from({ length: size }, () => generateLog());
+  const batch = Array.from({ length: batchSize }, () => generateLog());
 
   try {
     const res = await fetch(url, {
@@ -88,16 +82,14 @@ async function emitBatch() {
       console.error(`HTTP ${res.status}: ${await res.text()}`);
     } else {
       const result = (await res.json()) as { accepted: number };
-      emitted += size;
-      console.log(`Sent ${size} logs (${emitted}/${count}) - accepted: ${result.accepted}`);
+      emitted += batchSize;
+      console.log(`Sent ${batchSize} logs (${emitted} total) - accepted: ${result.accepted}`);
     }
   } catch (err) {
     console.error("Failed to send:", err instanceof Error ? err.message : err);
   }
 
-  if (emitted < count) {
-    setTimeout(emitBatch, intervalMs);
-  }
+  setTimeout(emitBatch, intervalMs);
 }
 
 emitBatch();

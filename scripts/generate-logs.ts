@@ -1,14 +1,4 @@
-import { parseArgs } from "node:util";
 import { randomUUID } from "node:crypto";
-
-const { values } = parseArgs({
-  options: {
-    count: { type: "string", short: "n", default: "50" },
-  },
-  strict: true,
-});
-
-const count = parseInt(values.count!, 10);
 
 const LEVELS = ["DEBUG", "INFO", "INFO", "INFO", "WARN", "ERROR", "FATAL"] as const;
 
@@ -64,16 +54,10 @@ function generateLog() {
   };
 }
 
-let emitted = 0;
-
 function emit() {
-  if (emitted >= count) return;
   process.stdout.write(JSON.stringify(generateLog()) + "\n");
-  emitted++;
-  if (emitted < count) {
-    const delay = 100 + Math.floor(Math.random() * 100);
-    setTimeout(emit, delay);
-  }
+  const delay = 500 + Math.floor(Math.random() * 500);
+  setTimeout(emit, delay);
 }
 
 emit();
