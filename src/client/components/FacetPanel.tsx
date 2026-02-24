@@ -12,6 +12,8 @@ export interface FacetPanelProps {
   filters: Partial<QueryFilters>;
   /** Currently selected value for this facet (null if none). */
   selectedValue: string | null;
+  /** Periodic refetch interval in ms (e.g. during live tail). 0 or undefined to disable. */
+  refetchIntervalMs?: number;
   /** Called when user clicks a facet value to select or deselect it. */
   onSelect(field: string, value: string | null): void;
   /** Called when user removes a custom (non-default) facet. */
@@ -103,6 +105,7 @@ export function FacetPanel({
   definition,
   filters,
   selectedValue,
+  refetchIntervalMs,
   onSelect,
   onRemove,
 }: FacetPanelProps) {
@@ -110,6 +113,7 @@ export function FacetPanel({
     definition.field,
     definition.jsonPath,
     filters,
+    refetchIntervalMs,
   );
 
   const handleValueClick = useCallback(

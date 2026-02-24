@@ -203,6 +203,7 @@ export function useFacets(
   field: string,
   jsonPath: string | null,
   filters: Partial<QueryFilters>,
+  refetchIntervalMs?: number,
 ): UseFacetsResult {
   const [values, setValues] = useState<FacetValue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -261,6 +262,15 @@ export function useFacets(
     filters.endTime?.getTime(),
     fetchKey,
   ]);
+
+  // Periodic refetch (e.g. during live tail)
+  useEffect(() => {
+    if (!refetchIntervalMs || refetchIntervalMs <= 0) return;
+    const timer = setInterval(() => {
+      setFetchKey((k) => k + 1);
+    }, refetchIntervalMs);
+    return () => clearInterval(timer);
+  }, [refetchIntervalMs]);
 
   return { field, values, isLoading, error, refetch };
 }

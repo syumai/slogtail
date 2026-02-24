@@ -180,6 +180,9 @@ export function FacetSidebar() {
     ],
   );
 
+  // Periodic facet refetch interval during live tail (ms), 0 to disable
+  const facetRefetchInterval = filters.isLiveTail ? 2000 : 0;
+
   // Derive selected values from current filter state
   const getSelectedValue = useCallback(
     (field: string): string | null => {
@@ -295,6 +298,7 @@ export function FacetSidebar() {
             definition={facet}
             filters={queryFilters}
             selectedValue={getSelectedValue(facet.field)}
+            refetchIntervalMs={facetRefetchInterval}
             onSelect={handleSelect}
             onRemove={handleRemove}
           />
