@@ -7,32 +7,32 @@
     "dev": "vite",
     "build": "vite build && vite build --ssr src/cli/index.ts",
     "test": "vitest run",
-    "lint": "oxlint src && tsgo --noEmit",
+    "lint": "oxlint --type-aware --type-check src",
     "format": "oxfmt src",
     "format:check": "oxfmt --check src"
   },
   "dependencies": {
     "@duckdb/node-api": "1.4.4-r.1",
-    "@hono/node-server": "^1",
+    "@hono/node-server": "^1.19.9",
     "@hono/node-ws": "^1.3.0",
     "@hono/zod-validator": "^0.7.6",
-    "hono": "^4",
-    "react": "^19",
-    "react-dom": "^19",
+    "hono": "^4.12.2",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@hono/vite-dev-server": "^0.9",
-    "@types/node": "^25.2.3",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@typescript/native-preview": "*",
-    "@vitejs/plugin-react": "^4",
-    "oxfmt": "^0",
-    "oxlint": "^0",
-    "typescript": "^5",
-    "vite": "^6",
+    "@hono/vite-dev-server": "^0.25.0",
+    "@types/node": "^25.3.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "oxfmt": "^0.35.0",
+    "oxlint": "^1.50.0",
+    "oxlint-tsgolint": "^0.14.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
     "vite-ssr-components": "^0.5.2",
-    "vitest": "^3"
+    "vitest": "^4.0.18"
   }
 }
