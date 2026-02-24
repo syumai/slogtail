@@ -105,13 +105,34 @@ async function main(): Promise<void> {
   // Create API app with database dependency
   const apiApp = createApiApp(db, ingester);
 
-  // Build the full app using createApp factory (HTML shell + placeholder API).
-  // The setup callback mounts the real API routes and optional static file serving.
-  // Note: createApp mounts a placeholder /api/health; the real API adds all routes
-  // including a proper /api/health with uptime tracking.
+  // Create WebSocket support.  We pass a mutable init object so we can
+  // register the upgradeWebSocket middleware inside the setup callback
+  // (before the catch-all "*" route) and later point init.app to fullApp.
+  const wsInit = { app: null as unknown as ReturnType<typeof createApp> };
+  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket(wsInit);
+
+  // Build the full app.  Routes registered in setup() come before the
+  // catch-all HTML handler added by createApp, so the WebSocket route
+  // will match first.
   const fullApp = createApp("/static/client.js", (app) => {
     // Mount real API routes
     app.route("/", apiApp);
+
+    // WebSocket route for live tail (must be before the catch-all "*")
+    app.get(
+      "/api/ws/tail",
+      upgradeWebSocket(() => ({
+        onOpen(_evt, ws) {
+          wsHandler.handleConnection(ws);
+        },
+        onMessage(evt, ws) {
+          wsHandler.handleMessage(ws, evt.data.toString());
+        },
+        onClose(_evt, ws) {
+          wsHandler.handleClose(ws);
+        },
+      })),
+    );
 
     // Add static file serving if UI is enabled
     if (!opts.noUi) {
@@ -119,26 +140,8 @@ async function main(): Promise<void> {
     }
   });
 
-  // Create and inject WebSocket support
-  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({
-    app: fullApp,
-  });
-
-  // Add WebSocket route for live tail
-  fullApp.get(
-    "/api/ws/tail",
-    upgradeWebSocket(() => ({
-      onOpen(_evt, ws) {
-        wsHandler.handleConnection(ws);
-      },
-      onMessage(evt, ws) {
-        wsHandler.handleMessage(ws, evt.data.toString());
-      },
-      onClose(_evt, ws) {
-        wsHandler.handleClose(ws);
-      },
-    })),
-  );
+  // Now that fullApp exists, update the reference for injectWebSocket
+  wsInit.app = fullApp;
 
   // Start HTTP server
   const server = serve(
