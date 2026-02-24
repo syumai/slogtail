@@ -1,12 +1,40 @@
 import module from "node:module"
-import { defineConfig } from "vite"
+import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import devServer from "@hono/vite-dev-server"
+import { WebSocketServer } from "ws"
+
+function devWebSocketPlugin(): Plugin {
+  return {
+    name: "lduck-dev-ws",
+    configureServer(server) {
+      const wss = new WebSocketServer({ noServer: true })
+
+      server.httpServer?.on("upgrade", (req, socket, head) => {
+        const pathname = new URL(req.url ?? "/", "http://localhost").pathname
+        if (pathname !== "/api/ws/tail") return
+
+        const wsHandler = globalThis.__lduck_dev?.wsHandler
+        if (!wsHandler) {
+          socket.destroy()
+          return
+        }
+
+        wss.handleUpgrade(req, socket, head, (ws) => {
+          wsHandler.handleConnection(ws)
+          ws.on("message", (data) => wsHandler.handleMessage(ws, data.toString()))
+          ws.on("close", () => wsHandler.handleClose(ws))
+        })
+      })
+    },
+  }
+}
 
 export default defineConfig(({ command, isSsrBuild }) => ({
   plugins: [
     !isSsrBuild ? react() : null,
     command === "serve" ? devServer({ entry: "src/server/dev-server.tsx" }) : null,
+    command === "serve" ? devWebSocketPlugin() : null,
   ].filter(Boolean),
   ssr: {
     target: "node",

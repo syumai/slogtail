@@ -1,19 +1,26 @@
 import { LogDatabase } from "./db";
 import { Ingester } from "./ingester";
+import { WSHandler } from "./ws";
 
-// Persist DB and Ingester across Vite HMR reloads
+// Persist DB, Ingester, and WSHandler across Vite HMR reloads
 declare global {
   // eslint-disable-next-line no-var
-  var __lduck_dev: { db: LogDatabase; ingester: Ingester } | undefined;
+  var __lduck_dev:
+    | { db: LogDatabase; ingester: Ingester; wsHandler: WSHandler }
+    | undefined;
 }
 
-async function initDev(): Promise<{ db: LogDatabase; ingester: Ingester }> {
+async function initDev(): Promise<{
+  db: LogDatabase;
+  ingester: Ingester;
+  wsHandler: WSHandler;
+}> {
   if (globalThis.__lduck_dev) {
-    console.log("[dev-init] reusing existing DB + Ingester");
+    console.log("[dev-init] reusing existing DB + Ingester + WSHandler");
     return globalThis.__lduck_dev;
   }
 
-  console.log("[dev-init] initializing new DB + Ingester");
+  console.log("[dev-init] initializing new DB + Ingester + WSHandler");
   const db = new LogDatabase();
   await db.initialize(":memory:");
 
@@ -25,8 +32,12 @@ async function initDev(): Promise<{ db: LogDatabase; ingester: Ingester }> {
   });
   ingester.startTimer();
 
-  globalThis.__lduck_dev = { db, ingester };
-  return { db, ingester };
+  const wsHandler = new WSHandler();
+  wsHandler.setDatabase(db);
+  wsHandler.subscribe(ingester);
+
+  globalThis.__lduck_dev = { db, ingester, wsHandler };
+  return { db, ingester, wsHandler };
 }
 
 export const devResources = await initDev();
