@@ -6,7 +6,7 @@ import devServer from "@hono/vite-dev-server"
 export default defineConfig(({ command, isSsrBuild }) => ({
   plugins: [
     !isSsrBuild ? react() : null,
-    command === "serve" ? devServer({ entry: "src/server/index.tsx" }) : null,
+    command === "serve" ? devServer({ entry: "src/server/dev-server.tsx" }) : null,
   ].filter(Boolean),
   ssr: {
     target: "node",
