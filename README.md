@@ -1,37 +1,53 @@
 # lduck
 
-Pipe-friendly log viewer. Reads JSON lines from stdin, stores them in DuckDB, and serves a React-based search UI.
+Pipe-friendly JSON log viewer powered by DuckDB. Reads JSON lines from stdin or HTTP, stores them in DuckDB, and serves a real-time search UI.
 
-## Setup
+## Install
 
 ```bash
-pnpm install
+npm install -g lduck
 ```
 
-## Usage
+## Quick Start
 
 Pipe any JSON-lines output into lduck:
 
 ```bash
-kubectl logs -f deploy/api | node src/cli/index.ts
-cat app.log | node src/cli/index.ts --port 9090
-docker logs -f myapp | node src/cli/index.ts --db ./logs.duckdb
+kubectl logs -f deploy/api | lduck
+cat app.log | lduck --port 9090
+docker logs -f myapp | lduck --db ./logs.duckdb
 ```
 
-### CLI Options
+Then open http://localhost:8080 in your browser.
 
-| Option | Short | Default | Description |
-|--------|-------|---------|-------------|
-| `--port <port>` | `-p` | `8080` | Server port |
-| `--max-rows <n>` | `-m` | `100000` | Maximum rows to keep |
-| `--batch-size <n>` | | `5000` | Batch INSERT size |
-| `--db <path>` | | `:memory:` | DuckDB persistence path |
-| `--no-ui` | | `false` | Disable Web UI, API server only |
-| `--help` | `-h` | | Show help message |
+## Features
 
-### Expected JSON Format
+- Full-text search across all log fields
+- Filter by level, service, host, source, and time range
+- Faceted navigation with custom facet support
+- Live tail via WebSocket (with polling fallback)
+- Raw SQL queries against DuckDB
+- CSV / JSON export
+- HTTP ingestion endpoint for batch log submission
+- In-memory by default, optional file-based persistence
 
-Each line should be a JSON object. lduck recognizes these fields (with aliases):
+## CLI Options
+
+```
+Usage: <command> | lduck [options]
+
+Options:
+  -p, --port <port>       Server port (default: 8080)
+  -m, --max-rows <n>      Maximum rows to keep (default: 100000)
+      --batch-size <n>    Batch INSERT size (default: 5000)
+      --db <path>         DuckDB persistence path (default: :memory:)
+      --no-ui             Disable Web UI, API server only
+  -h, --help              Show this help message
+```
+
+## JSON Format
+
+Each line should be a JSON object. lduck normalizes common field names automatically:
 
 | Field | Aliases |
 |-------|---------|
@@ -46,33 +62,59 @@ Each line should be a JSON object. lduck recognizes these fields (with aliases):
 
 Unrecognized fields are preserved in `_raw` and searchable via raw SQL.
 
-## Test Log Generation
+## HTTP Ingestion
 
-A helper script generates random structured logs for testing:
-
-```bash
-# Generate 50 logs (default) and pipe to lduck
-node scripts/generate-logs.ts | node src/cli/index.ts
-
-# Generate 200 logs on a custom port
-node scripts/generate-logs.ts -n 200 | node src/cli/index.ts --port 8888
-```
-
-The script outputs JSON lines at ~100-200ms intervals with randomized levels, services, messages, and trace IDs.
-
-## Scripts
+You can also send logs via HTTP instead of stdin:
 
 ```bash
-pnpm dev          # Start dev server
-pnpm build        # Build for production
-pnpm test         # Run tests
-pnpm lint         # Lint + type check
-pnpm format       # Format code
+# Single log
+curl -X POST http://localhost:8080/api/ingest \
+  -H 'Content-Type: application/json' \
+  -d '{"level":"INFO","message":"hello from curl","service":"my-app"}'
+
+# Batch
+curl -X POST http://localhost:8080/api/ingest \
+  -H 'Content-Type: application/json' \
+  -d '[{"level":"INFO","message":"log 1"},{"level":"ERROR","message":"log 2"}]'
 ```
 
-## Production
+## API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/health` | Health check with uptime |
+| `GET` | `/api/logs` | Query logs (supports `search`, `level`, `service`, `source`, `startTime`, `endTime`, `limit`, `offset`, `order`) |
+| `GET` | `/api/stats` | Log statistics by level |
+| `GET` | `/api/facets` | Facet value distribution |
+| `GET` | `/api/schema` | Database schema |
+| `POST` | `/api/ingest` | Ingest JSON logs (single object or array) |
+| `POST` | `/api/query` | Execute raw SQL |
+| `POST` | `/api/export` | Export logs as CSV or JSON |
+| `WS` | `/api/ws/tail` | Live tail WebSocket |
+
+## Development
 
 ```bash
-pnpm build
-node dist/index.js
+git clone https://github.com/syumai/lduck.git
+cd lduck
+pnpm install
+pnpm dev            # Start Vite dev server
+pnpm test           # Run tests
+pnpm lint           # Lint + type check
+pnpm build          # Build for production
 ```
+
+### Test Log Generation
+
+```bash
+# stdout (pipe to lduck)
+pnpm generate-logs | lduck
+
+# HTTP (send to running lduck instance)
+pnpm generate-logs:http
+pnpm generate-logs:http -- --count 500 --url http://localhost:8080/api/ingest
+```
+
+## License
+
+MIT
