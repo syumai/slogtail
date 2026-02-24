@@ -146,7 +146,7 @@ export function LogViewer() {
     ],
   );
 
-  const { logs: apiLogs, total, isLoading, error } = useLogs(queryFilters);
+  const { logs: apiLogs, total, isLoading, error, refetch } = useLogs(queryFilters);
 
   // Live tail state
   const [liveLogs, setLiveLogs] = useState<SerializedLogEntry[]>([]);
@@ -180,6 +180,20 @@ export function LogViewer() {
     }
   }, [filters.isLiveTail]);
 
+  // Polling fallback: when live tail is on but WebSocket is unavailable (e.g. Vite dev server),
+  // periodically refetch logs via REST API
+  useEffect(() => {
+    if (!filters.isLiveTail || isConnected) return;
+
+    refetch();
+
+    const interval = setInterval(() => {
+      refetch();
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [filters.isLiveTail, isConnected, refetch]);
+
   // Auto-scroll to top on new live logs
   useEffect(() => {
     if (filters.isLiveTail && liveLogs.length > 0 && listRef.current) {
@@ -195,7 +209,10 @@ export function LogViewer() {
     actions.toggleLiveTail();
   }, [actions]);
 
-  const displayLogs = filters.isLiveTail ? liveLogs : apiLogs;
+  // When live tail is on: use WebSocket logs if connected, otherwise use polled API logs
+  const displayLogs = filters.isLiveTail
+    ? (isConnected ? liveLogs : apiLogs)
+    : apiLogs;
 
   return (
     <div style={containerStyle}>
@@ -213,7 +230,7 @@ export function LogViewer() {
           )}
           {filters.isLiveTail && (
             <span style={{ color: "#6a6a9a" }}>
-              {liveLogs.length} live logs
+              {isConnected ? `${liveLogs.length} live logs` : `${total.toLocaleString()} results (polling)`}
             </span>
           )}
         </div>
@@ -222,7 +239,7 @@ export function LogViewer() {
             <span>
               <span style={connectedDotStyle(isConnected)} />
               <span style={{ color: "#6a6a9a", fontSize: "12px" }}>
-                {isConnected ? "Connected" : "Disconnected"}
+                {isConnected ? "Connected" : "Polling"}
               </span>
             </span>
           )}

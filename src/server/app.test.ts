@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import { createApiApp } from "./app";
 import { LogDatabase } from "./db";
+import { Ingester } from "./ingester";
 import type { NormalizedLog } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -604,6 +605,88 @@ describe("GET /api/facets", () => {
 
   it("returns 400 for missing field parameter", async () => {
     const res = await facetApp.request("/api/facets");
+    expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/ingest
+// ---------------------------------------------------------------------------
+
+describe("POST /api/ingest", () => {
+  let ingestDb: LogDatabase;
+  let ingester: Ingester;
+  let ingestApp: ReturnType<typeof createApiApp>;
+
+  beforeAll(async () => {
+    ingestDb = new LogDatabase();
+    await ingestDb.initialize(":memory:");
+    ingester = new Ingester(ingestDb, {
+      batchSize: 5000,
+      flushIntervalMs: 500,
+      maxRows: 100_000,
+      defaultSource: "http",
+    });
+    ingester.startTimer();
+    ingestApp = createApiApp(ingestDb, ingester);
+  });
+
+  afterAll(async () => {
+    await ingester.stop();
+    if (ingestDb) await ingestDb.close();
+  });
+
+  it("accepts a single log object", async () => {
+    const res = await ingestApp.request("/api/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "single log", level: "INFO" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.accepted).toBe(1);
+  });
+
+  it("accepts an array of log objects", async () => {
+    const res = await ingestApp.request("/api/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify([
+        { message: "log1", level: "INFO" },
+        { message: "log2", level: "ERROR" },
+        { message: "log3", level: "WARN" },
+      ]),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.accepted).toBe(3);
+  });
+
+  it("ingested logs are queryable from the database", async () => {
+    // Wait for flush
+    await ingester.stop();
+    ingester.startTimer();
+
+    const result = await ingestDb.queryLogs({ limit: 100, offset: 0, order: "asc" });
+    expect(result.total).toBeGreaterThanOrEqual(4); // 1 single + 3 batch from above
+  });
+
+  it("returns 503 when ingester is not provided", async () => {
+    const noIngesterApp = createApiApp(ingestDb);
+    const res = await noIngesterApp.request("/api/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "test" }),
+    });
+    expect(res.status).toBe(503);
+  });
+
+  it("returns 400 for invalid body (string)", async () => {
+    const res = await ingestApp.request("/api/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: '"just a string"',
+    });
     expect(res.status).toBe(400);
   });
 });

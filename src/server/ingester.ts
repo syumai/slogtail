@@ -29,8 +29,31 @@ export class Ingester {
   // Public API: IngesterService interface
   // -------------------------------------------------------------------------
 
-  start(input: NodeJS.ReadableStream): void {
+  /**
+   * Start the periodic flush timer without binding to a readable stream.
+   * Use this when ingesting logs via `ingestLines()` (e.g. HTTP endpoint).
+   */
+  startTimer(): void {
     this.stopped = false;
+    this.resetFlushTimer();
+  }
+
+  /**
+   * Feed JSON lines directly (without a stream).
+   * Each string is processed through the same normalization pipeline as stdin.
+   */
+  ingestLines(lines: string[]): void {
+    for (const line of lines) {
+      this.handleLine(line);
+    }
+    // Ensure the flush timer is running (it stops after an empty-buffer flush)
+    if (this.flushTimer === null && !this.stopped) {
+      this.resetFlushTimer();
+    }
+  }
+
+  start(input: NodeJS.ReadableStream): void {
+    this.startTimer();
 
     this.rl = createInterface({
       input: input as NodeJS.ReadableStream,
@@ -45,8 +68,6 @@ export class Ingester {
       // Stream ended; flush remaining buffer
       this.flushBuffer();
     });
-
-    this.resetFlushTimer();
   }
 
   async stop(): Promise<void> {
@@ -188,9 +209,8 @@ export class Ingester {
       await this.db.insertBatch(batch);
       await this.db.evictOldRows(this.options.maxRows);
       this.emitter.emit("batch", batch);
-    } catch {
-      // Log error but don't crash
-      // In production this would go to stderr
+    } catch (err) {
+      console.error("[ingester] doFlush error:", err);
     }
   }
 
@@ -205,6 +225,7 @@ export class Ingester {
 
     if (!this.stopped) {
       this.flushTimer = setTimeout(() => {
+        this.flushTimer = null;
         this.flushBuffer();
       }, this.options.flushIntervalMs);
     }

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { LogDatabase } from "./db";
+import type { Ingester } from "./ingester";
 import type { ErrorResponse, LogQueryParams } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,11 @@ const exportSchema = z.object({
   startTime: z.coerce.date().optional(),
   endTime: z.coerce.date().optional(),
 });
+
+const ingestBodySchema = z.union([
+  z.record(z.string(), z.unknown()),
+  z.array(z.record(z.string(), z.unknown())),
+]);
 
 const facetQuerySchema = z.object({
   field: z.string(),
@@ -105,7 +111,7 @@ function serializeStats(stats: { total: number; byLevel: Record<string, number>;
 // Factory function
 // ---------------------------------------------------------------------------
 
-export function createApiApp(db: LogDatabase) {
+export function createApiApp(db: LogDatabase, ingester?: Ingester) {
   const startTime = Date.now();
 
   const app = new Hono()
@@ -259,6 +265,28 @@ export function createApiApp(db: LogDatabase) {
           500,
         );
       }
+    })
+
+    // ----- POST /api/ingest -----
+    .post("/ingest", zValidator("json", ingestBodySchema, validationHook), (c) => {
+      if (!ingester) {
+        return c.json(
+          {
+            error: {
+              code: "NOT_AVAILABLE" as const,
+              message: "Ingestion not available",
+            },
+          },
+          503,
+        );
+      }
+
+      const body = c.req.valid("json");
+      const items = Array.isArray(body) ? body : [body];
+      const lines = items.map((item) => JSON.stringify(item));
+      ingester.ingestLines(lines);
+
+      return c.json({ accepted: lines.length });
     })
 
     // ----- GET /api/facets -----

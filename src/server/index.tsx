@@ -1,7 +1,10 @@
 import { Hono } from "hono"
 import { renderToString } from "react-dom/server"
 import { ReactRefresh, ViteClient } from "vite-ssr-components/react"
-import api from "./app"
+import { devResources } from "./dev-init"
+import { createApiApp } from "./app"
+
+const api = createApiApp(devResources.db, devResources.ingester)
 
 export function createApp(scriptSrc: string, setup?: (app: Hono) => void) {
   const app = new Hono()

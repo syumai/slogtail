@@ -103,7 +103,7 @@ async function main(): Promise<void> {
   wsHandler.subscribe(ingester);
 
   // Create API app with database dependency
-  const apiApp = createApiApp(db);
+  const apiApp = createApiApp(db, ingester);
 
   // Build the full app using createApp factory (HTML shell + placeholder API).
   // The setup callback mounts the real API routes and optional static file serving.

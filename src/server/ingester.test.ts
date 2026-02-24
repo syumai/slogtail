@@ -961,6 +961,22 @@ describe("Ingester - additional field alias mappings", () => {
     expect(batch[0].trace_id).toBe("corr-789");
   });
 
+  it("maps 'time' alias to timestamp", async () => {
+    const lines = [
+      JSON.stringify({ time: "2026-04-01T00:00:00Z", message: "time alias" }),
+    ];
+    const stream = createReadableFromLines(lines);
+
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.start(stream);
+    const batch = await batchPromise;
+
+    expect(batch[0].timestamp).toEqual(new Date("2026-04-01T00:00:00Z"));
+  });
+
   it("uses first matching alias when multiple aliases are present", async () => {
     const lines = [
       JSON.stringify({
@@ -982,5 +998,84 @@ describe("Ingester - additional field alias mappings", () => {
     // The first resolved alias wins (object iteration order: timestamp resolves first)
     expect(batch[0].timestamp).toEqual(new Date("2026-01-01T00:00:00Z"));
     expect(batch[0].level).toBe("INFO");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ingestLines (HTTP ingestion path)
+// ---------------------------------------------------------------------------
+
+describe("Ingester - ingestLines", () => {
+  let db: LogDatabase;
+  let ingester: Ingester;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    ingester = new Ingester(db, { ...defaultOptions, batchSize: 100 });
+    ingester.startTimer();
+  });
+
+  afterEach(async () => {
+    await ingester.stop();
+    await db.close();
+  });
+
+  it("ingests lines without a readable stream", async () => {
+    ingester.ingestLines([
+      JSON.stringify({ message: "http-log-1", level: "INFO" }),
+      JSON.stringify({ message: "http-log-2", level: "ERROR" }),
+    ]);
+
+    await ingester.stop();
+
+    const result = await db.queryLogs({ limit: 100, offset: 0, order: "asc" });
+    expect(result.total).toBe(2);
+    expect(result.logs[0].message).toBe("http-log-1");
+    expect(result.logs[1].message).toBe("http-log-2");
+  });
+
+  it("skips invalid JSON in ingestLines", async () => {
+    ingester.ingestLines([
+      JSON.stringify({ message: "valid" }),
+      "not-json",
+      JSON.stringify({ message: "also-valid" }),
+    ]);
+
+    await ingester.stop();
+
+    const result = await db.queryLogs({ limit: 100, offset: 0, order: "asc" });
+    expect(result.total).toBe(2);
+  });
+
+  it("emits batch event from ingestLines", async () => {
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+
+    ingester.ingestLines([
+      JSON.stringify({ message: "batch-test", level: "WARN" }),
+    ]);
+
+    await ingester.stop();
+    const batch = await batchPromise;
+
+    expect(batch).toHaveLength(1);
+    expect(batch[0].message).toBe("batch-test");
+    expect(batch[0].level).toBe("WARN");
+  });
+
+  it("normalizes field aliases via ingestLines", async () => {
+    ingester.ingestLines([
+      JSON.stringify({ ts: "2026-03-01T12:00:00Z", severity: "ERROR", msg: "alias test", svc: "api" }),
+    ]);
+
+    await ingester.stop();
+
+    const result = await db.queryLogs({ limit: 100, offset: 0, order: "asc" });
+    expect(result.logs[0].timestamp).toEqual(new Date("2026-03-01T12:00:00Z"));
+    expect(result.logs[0].level).toBe("ERROR");
+    expect(result.logs[0].message).toBe("alias test");
+    expect(result.logs[0].service).toBe("api");
   });
 });
