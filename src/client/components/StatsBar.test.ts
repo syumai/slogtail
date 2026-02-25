@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { formatIngestionRate, formatTimeRange } from "./StatsBar";
+import {
+  formatIngestionRate,
+  formatTimeRange,
+  shouldPollStats,
+  resolveDisplayStats,
+} from "./StatsBar";
+import type { SerializedLogStats } from "../api";
 
 // ---------------------------------------------------------------------------
 // formatIngestionRate - human-readable ingestion rate display
@@ -74,5 +80,73 @@ describe("formatTimeRange", () => {
     const result = formatTimeRange("2026-06-15T14:30:00.000Z", null);
     // Should contain some recognizable date parts
     expect(result).toMatch(/\d{4}/); // year
+  });
+});
+
+// ---------------------------------------------------------------------------
+// shouldPollStats - polling fallback decision logic (Req 4.4)
+// ---------------------------------------------------------------------------
+
+describe("shouldPollStats", () => {
+  it("returns true when live tail is on and WebSocket is disconnected", () => {
+    expect(shouldPollStats(true, false)).toBe(true);
+  });
+
+  it("returns false when live tail is on and WebSocket is connected", () => {
+    expect(shouldPollStats(true, true)).toBe(false);
+  });
+
+  it("returns false when live tail is off and WebSocket is disconnected", () => {
+    expect(shouldPollStats(false, false)).toBe(false);
+  });
+
+  it("returns false when live tail is off and WebSocket is connected", () => {
+    expect(shouldPollStats(false, true)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveDisplayStats - choose between live and API stats (Req 4.3, 4.4)
+// ---------------------------------------------------------------------------
+
+describe("resolveDisplayStats", () => {
+  const apiStats: SerializedLogStats = {
+    total: 100,
+    byLevel: { INFO: 80, ERROR: 20 },
+    errorRate: 20,
+    timeRange: { min: "2026-01-01T00:00:00Z", max: "2026-01-01T12:00:00Z" },
+    ingestionRate: 5,
+  };
+
+  const liveStats: SerializedLogStats = {
+    total: 150,
+    byLevel: { INFO: 120, ERROR: 30 },
+    errorRate: 20,
+    timeRange: { min: "2026-01-01T00:00:00Z", max: "2026-01-01T13:00:00Z" },
+    ingestionRate: 10,
+  };
+
+  it("returns liveStats when live tail is on and liveStats is available", () => {
+    expect(resolveDisplayStats(true, liveStats, apiStats)).toBe(liveStats);
+  });
+
+  it("returns apiStats when live tail is on but liveStats is null", () => {
+    expect(resolveDisplayStats(true, null, apiStats)).toBe(apiStats);
+  });
+
+  it("returns apiStats when live tail is off", () => {
+    expect(resolveDisplayStats(false, liveStats, apiStats)).toBe(apiStats);
+  });
+
+  it("returns apiStats when live tail is off and liveStats is null", () => {
+    expect(resolveDisplayStats(false, null, apiStats)).toBe(apiStats);
+  });
+
+  it("returns null when both liveStats and apiStats are null", () => {
+    expect(resolveDisplayStats(true, null, null)).toBeNull();
+  });
+
+  it("returns null when live tail is off and apiStats is null", () => {
+    expect(resolveDisplayStats(false, null, null)).toBeNull();
   });
 });

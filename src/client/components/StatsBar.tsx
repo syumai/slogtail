@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useStats, useWebSocket } from "../api";
 import type { SerializedLogStats } from "../api";
 import { useFilters } from "../store";
@@ -22,6 +22,31 @@ export function formatIngestionRate(rate: number): string {
         maximumFractionDigits: 1,
       });
   return `${formatted} logs/s`;
+}
+
+/**
+ * Determine whether StatsBar should fall back to REST polling for stats.
+ * Returns true when live tail is active but the WebSocket is disconnected.
+ */
+export function shouldPollStats(
+  isLiveTail: boolean,
+  isWsConnected: boolean,
+): boolean {
+  return isLiveTail && !isWsConnected;
+}
+
+/**
+ * Select the stats object to display based on live-tail state.
+ * When live tail is on and live stats are available, prefer live stats.
+ * Otherwise fall back to API stats.
+ */
+export function resolveDisplayStats(
+  isLiveTail: boolean,
+  liveStats: SerializedLogStats | null,
+  apiStats: SerializedLogStats | null,
+): SerializedLogStats | null {
+  if (isLiveTail && liveStats) return liveStats;
+  return apiStats;
 }
 
 /**
@@ -131,7 +156,7 @@ const timeRangeStyle: React.CSSProperties = {
 
 export function StatsBar() {
   const [filters] = useFilters();
-  const { stats: apiStats, isLoading } = useStats(filters.source.length === 1 ? filters.source[0] : undefined);
+  const { stats: apiStats, isLoading, refetch } = useStats(filters.source.length === 1 ? filters.source[0] : undefined);
   const [liveStats, setLiveStats] = useState<SerializedLogStats | null>(null);
 
   const handleStats = useCallback((stats: SerializedLogStats) => {
@@ -147,13 +172,28 @@ export function StatsBar() {
     [filters.level, filters.service, filters.source],
   );
 
-  useWebSocket({
+  const { isConnected } = useWebSocket({
     onStats: handleStats,
     filter: wsFilter,
     enabled: filters.isLiveTail,
   });
 
-  const stats = filters.isLiveTail && liveStats ? liveStats : apiStats;
+  // Polling fallback: when live tail is on but WebSocket is disconnected,
+  // periodically refetch stats via REST API (same pattern as LogViewer).
+  useEffect(() => {
+    if (!shouldPollStats(filters.isLiveTail, isConnected)) return;
+
+    // Immediately refetch once on entering polling mode
+    refetch();
+
+    const interval = setInterval(() => {
+      refetch();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [filters.isLiveTail, isConnected, refetch]);
+
+  const stats = resolveDisplayStats(filters.isLiveTail, liveStats, apiStats);
 
   if (isLoading && !stats) {
     return (
