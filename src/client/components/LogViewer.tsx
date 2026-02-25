@@ -7,6 +7,7 @@ import { LogRow } from "./LogRow";
 import { LogDetailPanel } from "./LogDetailPanel";
 import { Pagination } from "./Pagination";
 import { useKeyboardNav } from "./useKeyboardNav";
+import { useColumnConfig } from "./useColumnConfig";
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -71,9 +72,9 @@ const listStyle: React.CSSProperties = {
   backgroundColor: "#ffffff",
 };
 
-const headerRowStyle: React.CSSProperties = {
+const headerRowStyle = (gridTemplateColumns: string): React.CSSProperties => ({
   display: "grid",
-  gridTemplateColumns: "160px 60px 1fr 100px",
+  gridTemplateColumns,
   gap: "8px",
   padding: "6px 16px",
   backgroundColor: "#f5f5f5",
@@ -84,6 +85,23 @@ const headerRowStyle: React.CSSProperties = {
   position: "sticky",
   top: 0,
   zIndex: 1,
+});
+
+const headerCellStyle: React.CSSProperties = {
+  position: "relative",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const headerResizeHandleStyle: React.CSSProperties = {
+  position: "absolute",
+  top: 0,
+  right: 0,
+  width: "4px",
+  height: "100%",
+  cursor: "col-resize",
+  userSelect: "none",
 };
 
 const emptyStyle: React.CSSProperties = {
@@ -126,6 +144,7 @@ interface LogViewerProps {
 
 export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   const [filters, actions] = useFilters();
+  const { columns, gridTemplateColumns, setColumnWidth } = useColumnConfig();
   const listRef = useRef<HTMLDivElement>(null);
   const fallbackSearchInputRef = useRef<HTMLInputElement | null>(null);
   const effectiveSearchInputRef = searchInputRef ?? fallbackSearchInputRef;
@@ -217,6 +236,32 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   const handleLiveTailToggle = useCallback(() => {
     actions.toggleLiveTail();
   }, [actions]);
+
+  const handleColumnResizeMouseDown = useCallback(
+    (columnId: string, currentWidth: number, minWidth: number, event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const startX = event.clientX;
+      const headerCell = event.currentTarget.parentElement;
+      const measuredWidth = headerCell?.getBoundingClientRect().width ?? minWidth;
+      const startWidth = currentWidth > 0 ? currentWidth : Math.max(measuredWidth, minWidth);
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX;
+        setColumnWidth(columnId, startWidth + delta);
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [setColumnWidth],
+  );
 
   // When live tail is on: use WebSocket logs if connected, otherwise use polled API logs.
   // Apply client-side filtering for live tail logs to ensure all active filters are respected.
@@ -377,11 +422,30 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
       </div>
 
       {/* Column headers */}
-      <div style={headerRowStyle}>
-        <span>Timestamp</span>
-        <span style={{ textAlign: "center" }}>Level</span>
-        <span>Message</span>
-        <span style={{ textAlign: "right" }}>Source</span>
+      <div style={headerRowStyle(gridTemplateColumns)}>
+        {columns.map((column) => (
+          <div
+            key={column.id}
+            style={{
+              ...headerCellStyle,
+              textAlign:
+                column.field === "level" && column.jsonPath === null
+                  ? "center"
+                  : column.field === "source" && column.jsonPath === null
+                    ? "right"
+                    : "left",
+            }}
+          >
+            <span>{column.label}</span>
+            <div
+              role="separator"
+              style={headerResizeHandleStyle}
+              onMouseDown={(event) =>
+                handleColumnResizeMouseDown(column.id, column.width, column.minWidth, event)
+              }
+            />
+          </div>
+        ))}
       </div>
 
       {/* Log list */}
@@ -397,6 +461,8 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
           <LogRow
             key={log._id}
             log={log}
+            columns={columns}
+            gridTemplateColumns={gridTemplateColumns}
             isSelected={log._id === selectedLogId}
             onSelect={handleLogSelect}
           />

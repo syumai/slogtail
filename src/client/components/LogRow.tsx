@@ -1,11 +1,12 @@
 import { memo, useCallback } from "react";
 import type { SerializedLogEntry } from "../api";
+import type { ColumnDefinition } from "./useColumnConfig";
 
 // ---------------------------------------------------------------------------
 // Level colors
 // ---------------------------------------------------------------------------
 
-const LEVEL_COLORS: Record<string, string> = {
+export const LEVEL_COLORS: Record<string, string> = {
   DEBUG: "#6b7280",
   INFO: "#2563eb",
   WARN: "#d97706",
@@ -40,9 +41,12 @@ function sourceColor(source: string): string {
 // Styles
 // ---------------------------------------------------------------------------
 
-const rowStyle = (isSelected: boolean): React.CSSProperties => ({
+const rowStyle = (
+  isSelected: boolean,
+  gridTemplateColumns: string,
+): React.CSSProperties => ({
   display: "grid",
-  gridTemplateColumns: "160px 60px 1fr 100px",
+  gridTemplateColumns,
   gap: "8px",
   padding: "6px 16px",
   cursor: "pointer",
@@ -88,18 +92,75 @@ const sourceTagStyle = (color: string): React.CSSProperties => ({
   whiteSpace: "nowrap",
 });
 
+const genericCellStyle: React.CSSProperties = {
+  color: "#333333",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+function resolveJsonPathValue(data: unknown, path: string): unknown {
+  const segments = path.split(".").filter(Boolean);
+  if (segments.length === 0) return undefined;
+
+  let current: unknown = data;
+  for (const segment of segments) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function formatTimestamp(value: string | null): string {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toISOString().replace("T", " ").slice(0, 23);
+}
+
+function formatCellValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function getCellValue(log: SerializedLogEntry, column: ColumnDefinition): string {
+  if (column.jsonPath) {
+    return formatCellValue(resolveJsonPathValue(log._raw, column.jsonPath));
+  }
+
+  if (column.field === "timestamp") {
+    return formatTimestamp(log.timestamp);
+  }
+
+  const key = column.field as keyof SerializedLogEntry;
+  if (key in log) {
+    return formatCellValue(log[key]);
+  }
+  return "";
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 interface LogRowProps {
   log: SerializedLogEntry;
+  columns: ColumnDefinition[];
+  gridTemplateColumns: string;
   isSelected: boolean;
   onSelect: (logId: string) => void;
 }
 
 export const LogRow = memo(function LogRow({
   log,
+  columns,
+  gridTemplateColumns,
   isSelected,
   onSelect,
 }: LogRowProps) {
@@ -107,15 +168,11 @@ export const LogRow = memo(function LogRow({
     onSelect(log._id);
   }, [onSelect, log._id]);
 
-  const ts = log.timestamp
-    ? new Date(log.timestamp).toISOString().replace("T", " ").slice(0, 23)
-    : "--";
-
   const sColor = sourceColor(log.source);
 
   return (
     <div
-      style={rowStyle(isSelected)}
+      style={rowStyle(isSelected, gridTemplateColumns)}
       onClick={handleClick}
       role="button"
       tabIndex={0}
@@ -123,10 +180,43 @@ export const LogRow = memo(function LogRow({
         if (e.key === "Enter" || e.key === " ") handleClick();
       }}
     >
-      <span style={timestampStyle}>{ts}</span>
-      <span style={levelStyle(log.level)}>{log.level ?? "-"}</span>
-      <span style={messageStyle}>{log.message ?? ""}</span>
-      <span style={sourceTagStyle(sColor)}>{log.source}</span>
+      {columns.map((column) => {
+        const value = getCellValue(log, column);
+        if (column.field === "timestamp" && column.jsonPath === null) {
+          return (
+            <span key={column.id} style={timestampStyle}>
+              {value}
+            </span>
+          );
+        }
+        if (column.field === "level" && column.jsonPath === null) {
+          const normalizedLevel = value.toUpperCase();
+          return (
+            <span key={column.id} style={levelStyle(normalizedLevel)}>
+              {value || "-"}
+            </span>
+          );
+        }
+        if (column.field === "message" && column.jsonPath === null) {
+          return (
+            <span key={column.id} style={messageStyle}>
+              {value}
+            </span>
+          );
+        }
+        if (column.field === "source" && column.jsonPath === null) {
+          return (
+            <span key={column.id} style={sourceTagStyle(sColor)}>
+              {value}
+            </span>
+          );
+        }
+        return (
+          <span key={column.id} style={genericCellStyle}>
+            {value}
+          </span>
+        );
+      })}
     </div>
   );
 });
