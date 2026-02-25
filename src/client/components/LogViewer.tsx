@@ -210,13 +210,6 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     return () => clearInterval(interval);
   }, [filters.isLiveTail, isConnected, refetch]);
 
-  // Auto-scroll to top on new live logs
-  useEffect(() => {
-    if (filters.isLiveTail && liveLogs.length > 0 && listRef.current) {
-      listRef.current.scrollTop = 0;
-    }
-  }, [filters.isLiveTail, liveLogs.length]);
-
   const handleSortToggle = useCallback(() => {
     actions.setOrder(filters.order === "desc" ? "asc" : "desc");
   }, [filters.order, actions]);
@@ -263,27 +256,32 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.host, filters.source, filters.search, filters.jsonFilters]);
 
   // -------------------------------------------------------------------------
-  // Selection state: track by index, derive selectedLogId from displayLogs
+  // Selection state: track by log id, derive selected index from displayLogs
   // -------------------------------------------------------------------------
-  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
 
-  // Derive selectedLogId from the index
-  const selectedLogId = useMemo(() => {
-    if (selectedIndex < 0 || selectedIndex >= displayLogs.length) return null;
-    return displayLogs[selectedIndex]?._id ?? null;
-  }, [selectedIndex, displayLogs]);
+  const selectedIndex = useMemo(() => {
+    if (selectedLogId === null) return -1;
+    return displayLogs.findIndex((l) => l._id === selectedLogId);
+  }, [selectedLogId, displayLogs]);
+
+  // Auto-scroll to top on new live logs, unless detail panel is open.
+  useEffect(() => {
+    if (filters.isLiveTail && selectedLogId === null && liveLogs.length > 0 && listRef.current) {
+      listRef.current.scrollTop = 0;
+    }
+  }, [filters.isLiveTail, liveLogs.length, selectedLogId]);
 
   // When a row is clicked, toggle selection
   const handleLogSelect = useCallback(
     (logId: string) => {
-      const idx = displayLogs.findIndex((l) => l._id === logId);
-      setSelectedIndex((prev) => (prev === idx ? -1 : idx));
+      setSelectedLogId((prev) => (prev === logId ? null : logId));
     },
-    [displayLogs],
+    [],
   );
 
   const handleDetailClose = useCallback(() => {
-    setSelectedIndex(-1);
+    setSelectedLogId(null);
   }, []);
 
   const handleTraceIdClick = useCallback(
@@ -306,7 +304,13 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     totalItems: displayLogs.length,
     selectedIndex,
     isDetailOpen: selectedLogId !== null,
-    onSelectIndex: setSelectedIndex,
+    onSelectIndex: (index) => {
+      if (index < 0 || index >= displayLogs.length) {
+        setSelectedLogId(null);
+        return;
+      }
+      setSelectedLogId(displayLogs[index]?._id ?? null);
+    },
     onOpenDetail: handleOpenDetail,
     onCloseDetail: handleDetailClose,
     searchInputRef: effectiveSearchInputRef,
@@ -322,12 +326,12 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     }
   }, [selectedIndex]);
 
-  // Reset selection when displayLogs change and the selected index is out of bounds
+  // Reset selection when selected log is no longer visible in the current display set
   useEffect(() => {
-    if (selectedIndex >= displayLogs.length) {
-      setSelectedIndex(displayLogs.length > 0 ? displayLogs.length - 1 : -1);
-    }
-  }, [displayLogs.length, selectedIndex]);
+    if (selectedLogId === null) return;
+    if (displayLogs.some((l) => l._id === selectedLogId)) return;
+    setSelectedLogId(null);
+  }, [displayLogs, selectedLogId]);
 
   const selectedLog = useMemo(
     () => (selectedLogId ? displayLogs.find((l) => l._id === selectedLogId) ?? null : null),
