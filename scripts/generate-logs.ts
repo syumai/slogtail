@@ -43,9 +43,10 @@ function pick<T>(arr: readonly T[]): T {
 
 function generateLog() {
   const service = pick(SERVICES);
+  const level = pick(LEVELS);
   return {
     timestamp: new Date().toISOString(),
-    level: pick(LEVELS),
+    level: Math.random() < 0.5 ? level : level.toLowerCase(),
     message: pick(MESSAGES[service]),
     service,
     host: pick(HOSTS),
