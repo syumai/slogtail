@@ -230,9 +230,9 @@ describe("Type compatibility", () => {
 
   it("LogQueryParams accepts all optional fields", () => {
     const params: LogQueryParams = {
-      level: "ERROR",
-      service: "api",
-      source: "default",
+      level: ["ERROR"],
+      service: ["api"],
+      source: ["default"],
       search: "connection",
       startTime: new Date("2026-01-01"),
       endTime: new Date("2026-12-31"),
@@ -240,8 +240,8 @@ describe("Type compatibility", () => {
       offset: 10,
       order: "asc",
     };
-    expect(params.level).toBe("ERROR");
-    expect(params.source).toBe("default");
+    expect(params.level).toEqual(["ERROR"]);
+    expect(params.source).toEqual(["default"]);
     expect(params.search).toBe("connection");
   });
 
@@ -318,7 +318,7 @@ describe("Type compatibility", () => {
   it("WSClientMessage filter message", () => {
     const msg: WSClientMessage = {
       type: "filter",
-      filter: { level: "ERROR", service: "api" },
+      filter: { level: ["ERROR"], service: ["api"] },
     };
     expect(msg.type).toBe("filter");
   });
@@ -326,20 +326,20 @@ describe("Type compatibility", () => {
   it("WSClientMessage filter with source", () => {
     const msg: WSClientMessage = {
       type: "filter",
-      filter: { level: "WARN", source: "worker" },
+      filter: { level: ["WARN"], source: ["worker"] },
     };
-    expect(msg.filter.source).toBe("worker");
+    expect(msg.filter.source).toEqual(["worker"]);
   });
 
   it("WSFilter can be used independently", () => {
     const filter: WSFilter = {
-      level: "DEBUG",
-      service: "auth",
-      source: "process-1",
+      level: ["DEBUG"],
+      service: ["auth"],
+      source: ["process-1"],
     };
-    expect(filter.level).toBe("DEBUG");
-    expect(filter.service).toBe("auth");
-    expect(filter.source).toBe("process-1");
+    expect(filter.level).toEqual(["DEBUG"]);
+    expect(filter.service).toEqual(["auth"]);
+    expect(filter.source).toEqual(["process-1"]);
   });
 
   it("WSFilter can be empty", () => {
@@ -365,6 +365,7 @@ describe("Type compatibility", () => {
         byLevel: { INFO: 80, ERROR: 20 },
         errorRate: 0.2,
         timeRange: { min: new Date(), max: new Date() },
+        ingestionRate: 0,
       },
     };
     expect(msg.type).toBe("stats");
