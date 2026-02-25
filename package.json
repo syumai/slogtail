@@ -31,6 +31,7 @@
   "engines": {
     "node": ">=20"
   },
+  "packageManager": "pnpm@10.27.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build && vite build --ssr src/cli/index.ts",
