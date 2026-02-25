@@ -377,7 +377,10 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     if (!filters.isLiveTail || !isConnected) return baseLogs;
 
     return baseLogs.filter((log) => {
-      if (filters.level.length > 0 && !filters.level.includes(log.level as LogLevel)) return false;
+      if (filters.level.length > 0) {
+        const normalizedLevel = log.level?.toUpperCase();
+        if (!normalizedLevel || !filters.level.includes(normalizedLevel as LogLevel)) return false;
+      }
       if (filters.service.length > 0 && !filters.service.includes(log.service ?? "")) return false;
       if (filters.host.length > 0 && !filters.host.includes(log.host ?? "")) return false;
       if (filters.source.length > 0 && !filters.source.includes(log.source)) return false;
@@ -426,6 +429,7 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   // Selection state: track by log id, derive selected index from displayLogs
   // -------------------------------------------------------------------------
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
+  const [selectedLog, setSelectedLog] = useState<SerializedLogEntry | null>(null);
 
   const selectedIndex = useMemo(() => {
     if (selectedLogId === null) return -1;
@@ -441,14 +445,19 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
 
   // When a row is clicked, toggle selection
   const handleLogSelect = useCallback(
-    (logId: string) => {
-      setSelectedLogId((prev) => (prev === logId ? null : logId));
+    (log: SerializedLogEntry) => {
+      setSelectedLogId((prev) => {
+        const isSameLog = prev === log._id;
+        setSelectedLog(isSameLog ? null : log);
+        return isSameLog ? null : log._id;
+      });
     },
     [],
   );
 
   const handleDetailClose = useCallback(() => {
     setSelectedLogId(null);
+    setSelectedLog(null);
   }, []);
 
   const handleTraceIdClick = useCallback(
@@ -474,9 +483,12 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     onSelectIndex: (index) => {
       if (index < 0 || index >= sortedLogs.length) {
         setSelectedLogId(null);
+        setSelectedLog(null);
         return;
       }
-      setSelectedLogId(sortedLogs[index]?._id ?? null);
+      const nextLog = sortedLogs[index] ?? null;
+      setSelectedLogId(nextLog?._id ?? null);
+      setSelectedLog(nextLog);
     },
     onOpenDetail: handleOpenDetail,
     onCloseDetail: handleDetailClose,
@@ -493,17 +505,13 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     }
   }, [selectedIndex]);
 
-  // Reset selection when selected log is no longer visible in the current display set
+  // Keep selected log content updated while preserving the panel when the row drops out of view.
   useEffect(() => {
     if (selectedLogId === null) return;
-    if (sortedLogs.some((l) => l._id === selectedLogId)) return;
-    setSelectedLogId(null);
+    const latestSelectedLog = sortedLogs.find((l) => l._id === selectedLogId);
+    if (!latestSelectedLog) return;
+    setSelectedLog(latestSelectedLog);
   }, [sortedLogs, selectedLogId]);
-
-  const selectedLog = useMemo(
-    () => (selectedLogId ? sortedLogs.find((l) => l._id === selectedLogId) ?? null : null),
-    [selectedLogId, sortedLogs],
-  );
 
   return (
     <div style={containerStyle}>

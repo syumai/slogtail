@@ -154,7 +154,7 @@ interface LogRowProps {
   columns: ColumnDefinition[];
   gridTemplateColumns: string;
   isSelected: boolean;
-  onSelect: (logId: string) => void;
+  onSelect: (log: SerializedLogEntry) => void;
 }
 
 export const LogRow = memo(function LogRow({
@@ -165,8 +165,8 @@ export const LogRow = memo(function LogRow({
   onSelect,
 }: LogRowProps) {
   const handleClick = useCallback(() => {
-    onSelect(log._id);
-  }, [onSelect, log._id]);
+    onSelect(log);
+  }, [onSelect, log]);
 
   const sColor = sourceColor(log.source);
 
