@@ -136,7 +136,7 @@ function serializeLogEntry(log: { _id: bigint; _ingested: Date; _raw: Record<str
   };
 }
 
-function serializeStats(stats: { total: number; byLevel: Record<string, number>; errorRate: number; timeRange: { min: Date | null; max: Date | null } }) {
+function serializeStats(stats: { total: number; byLevel: Record<string, number>; errorRate: number; timeRange: { min: Date | null; max: Date | null }; ingestionRate: number }) {
   return {
     total: stats.total,
     byLevel: stats.byLevel,
@@ -145,6 +145,7 @@ function serializeStats(stats: { total: number; byLevel: Record<string, number>;
       min: stats.timeRange.min?.toISOString() ?? null,
       max: stats.timeRange.max?.toISOString() ?? null,
     },
+    ingestionRate: stats.ingestionRate,
   };
 }
 
@@ -187,6 +188,10 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
       try {
         const { source } = c.req.valid("query");
         const stats = await db.getStats(source ? { source } : undefined);
+        if (ingester) {
+          const ingestionStats = ingester.getIngestionStats();
+          stats.ingestionRate = ingestionStats.ingestionRate;
+        }
         return c.json(serializeStats(stats));
       } catch (err) {
         return c.json(

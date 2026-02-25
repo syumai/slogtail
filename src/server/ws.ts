@@ -73,6 +73,7 @@ function serializeStats(stats: LogStats) {
       min: stats.timeRange.min?.toISOString() ?? null,
       max: stats.timeRange.max?.toISOString() ?? null,
     },
+    ingestionRate: stats.ingestionRate,
   };
 }
 
@@ -123,6 +124,9 @@ export class WSHandler {
         }
       }
       if (stats) {
+        // Merge ingestion rate from the ingester
+        const ingestionStats = ingester.getIngestionStats();
+        stats.ingestionRate = ingestionStats.ingestionRate;
         this.broadcast([...logs], stats);
       }
     });

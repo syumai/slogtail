@@ -230,6 +230,7 @@ export class LogDatabase {
         byLevel: {},
         errorRate: 0,
         timeRange: { min: null, max: null },
+        ingestionRate: 0,
       };
     }
 
@@ -263,6 +264,7 @@ export class LogDatabase {
         min: timeRow[0] !== null ? jsToDate(timeRow[0]) : null,
         max: timeRow[1] !== null ? jsToDate(timeRow[1]) : null,
       },
+      ingestionRate: 0,
     };
   }
 

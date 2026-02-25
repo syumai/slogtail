@@ -79,6 +79,7 @@ export interface LogStats {
   byLevel: Record<string, number>;
   errorRate: number;
   timeRange: { min: Date | null; max: Date | null };
+  ingestionRate: number;
 }
 
 // --- Facet Distribution ---

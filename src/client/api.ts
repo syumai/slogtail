@@ -51,6 +51,7 @@ export interface SerializedLogStats {
   byLevel: Record<string, number>;
   errorRate: number;
   timeRange: { min: string | null; max: string | null };
+  ingestionRate: number;
 }
 
 // ---------------------------------------------------------------------------

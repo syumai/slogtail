@@ -29,6 +29,7 @@ function makeStats(overrides: Partial<LogStats> = {}): LogStats {
     byLevel: { INFO: 5, ERROR: 3, WARN: 2 },
     errorRate: 0.3,
     timeRange: { min: new Date("2026-01-15T10:00:00Z"), max: new Date("2026-01-15T10:05:00Z") },
+    ingestionRate: 0,
     ...overrides,
   };
 }
@@ -481,6 +482,37 @@ describe("WSHandler", () => {
       handler.broadcast(logs, stats);
 
       expect(ws.send).not.toHaveBeenCalled();
+    });
+
+    it("includes ingestionRate in stats broadcast", () => {
+      const ws = createMockWS();
+      handler.handleConnection(ws as any);
+
+      const logs = [makeNormalizedLog({ _id: 1n })];
+      const stats = makeStats({ ingestionRate: 42.5 });
+
+      handler.broadcast(logs, stats);
+
+      const messages = ws.sent.map((s) => JSON.parse(s));
+      const statsMsg = messages.find((m: any) => m.type === "stats");
+      expect(statsMsg).toBeDefined();
+      expect(typeof statsMsg.data.ingestionRate).toBe("number");
+      expect(statsMsg.data.ingestionRate).toBe(42.5);
+    });
+
+    it("includes ingestionRate of 0 in stats broadcast when rate is zero", () => {
+      const ws = createMockWS();
+      handler.handleConnection(ws as any);
+
+      const logs = [makeNormalizedLog({ _id: 1n })];
+      const stats = makeStats({ ingestionRate: 0 });
+
+      handler.broadcast(logs, stats);
+
+      const messages = ws.sent.map((s) => JSON.parse(s));
+      const statsMsg = messages.find((m: any) => m.type === "stats");
+      expect(statsMsg).toBeDefined();
+      expect(statsMsg.data.ingestionRate).toBe(0);
     });
 
     it("serializes log entries correctly in broadcast", () => {

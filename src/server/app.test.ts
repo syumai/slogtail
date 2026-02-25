@@ -142,6 +142,36 @@ describe("GET /api/stats", () => {
 
     await emptyDb.close();
   });
+
+  it("includes ingestionRate field when ingester is provided", async () => {
+    const rateDb = new LogDatabase();
+    await rateDb.initialize(":memory:");
+    const ingester = new Ingester(rateDb, {
+      batchSize: 5000,
+      flushIntervalMs: 500,
+      maxRows: 100_000,
+      defaultSource: "default",
+    });
+    ingester.startTimer();
+    const rateApp = createApiApp(rateDb, ingester);
+
+    const res = await rateApp.request("/api/stats");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.ingestionRate).toBe("number");
+    expect(body.ingestionRate).toBeGreaterThanOrEqual(0);
+
+    await ingester.stop();
+    await rateDb.close();
+  });
+
+  it("returns ingestionRate of 0 when no ingester is provided", async () => {
+    const res = await statsApp.request("/api/stats");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.ingestionRate).toBe("number");
+    expect(body.ingestionRate).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
