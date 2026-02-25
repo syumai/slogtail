@@ -39,8 +39,7 @@
     "lint": "oxlint --type-aware --type-check src",
     "format": "oxfmt src",
     "format:check": "oxfmt --check src",
-    "generate-logs": "node --experimental-strip-types scripts/generate-logs.ts",
-    "generate-logs:http": "node --experimental-strip-types scripts/generate-logs-http.ts"
+    "generate-logs": "node --experimental-strip-types scripts/generate-logs.ts"
   },
   "dependencies": {
     "@duckdb/node-api": "1.4.4-r.1",

@@ -110,9 +110,8 @@ pnpm build          # Build for production
 # stdout (pipe to lduck)
 pnpm generate-logs | lduck
 
-# HTTP (send to running lduck instance)
-pnpm generate-logs:http
-pnpm generate-logs:http -- --count 500 --url http://localhost:8080/api/ingest
+# relay (send to running lduck instance)
+pnpm generate-logs | lduck relay --url http://localhost:8080
 ```
 
 ## License

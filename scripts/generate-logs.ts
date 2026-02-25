@@ -54,8 +54,20 @@ function generateLog() {
   };
 }
 
+const INVALID_LINES = [
+  '{"timestamp":"2024-01-01T00:00:00Z","level":"INFO',
+  "[WARN] plain text log without JSON",
+  "{{{malformed json",
+  "--- server restart ---",
+  '{"level": "ERROR", "message": "unclosed string}',
+];
+
 function emit() {
-  process.stdout.write(JSON.stringify(generateLog()) + "\n");
+  if (Math.random() < 0.1) {
+    process.stdout.write(pick(INVALID_LINES) + "\n");
+  } else {
+    process.stdout.write(JSON.stringify(generateLog()) + "\n");
+  }
   const delay = 500 + Math.floor(Math.random() * 500);
   setTimeout(emit, delay);
 }
