@@ -5,16 +5,60 @@ import type { LogLevel } from "../../types";
 import { LOG_LEVELS } from "../../types";
 
 // ---------------------------------------------------------------------------
+// Pure helper functions (exported for testing)
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate that startTime is not after endTime.
+ * Returns true if the range is valid (or partially/fully unset).
+ * Returns false if startTime > endTime.
+ */
+export function isValidTimeRange(
+  startTime: Date | undefined,
+  endTime: Date | undefined,
+): boolean {
+  if (startTime && endTime) {
+    return startTime.getTime() <= endTime.getTime();
+  }
+  return true;
+}
+
+/**
+ * Format a Date to a "YYYY-MM-DDTHH:mm" string for datetime-local input.
+ * Returns empty string for undefined.
+ */
+export function formatDatetimeLocal(d: Date | undefined): string {
+  if (!d) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+/**
+ * Parse a "YYYY-MM-DDTHH:mm" string from datetime-local input to Date.
+ * Returns undefined for empty or invalid strings.
+ */
+export function parseDatetimeLocal(value: string): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d;
+}
+
+// ---------------------------------------------------------------------------
 // Filter tag helpers
 // ---------------------------------------------------------------------------
 
-interface FilterTag {
+export interface FilterTag {
   key: string;
   label: string;
   onRemove(): void;
 }
 
-function buildFilterTags(
+export function buildFilterTags(
   filters: FilterState,
   actions: {
     setLevel(v: LogLevel | undefined): void;
@@ -111,6 +155,22 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
 };
 
+const datetimeInputStyle: React.CSSProperties = {
+  padding: "8px 12px",
+  backgroundColor: "#0f0f23",
+  border: "1px solid #3a3a5a",
+  borderRadius: "4px",
+  color: "#e0e0e0",
+  fontSize: "13px",
+  outline: "none",
+};
+
+const datetimeLabelStyle: React.CSSProperties = {
+  color: "#a0a0c0",
+  fontSize: "12px",
+  marginRight: "4px",
+};
+
 const selectStyle: React.CSSProperties = {
   padding: "8px 12px",
   backgroundColor: "#0f0f23",
@@ -177,6 +237,26 @@ export function SearchBar() {
     [actions],
   );
 
+  const handleStartTimeChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newStart = parseDatetimeLocal(e.target.value);
+      // Guard: if start > end, do not apply the filter
+      if (!isValidTimeRange(newStart, filters.endTime)) return;
+      actions.setTimeRange(newStart, filters.endTime);
+    },
+    [actions, filters.endTime],
+  );
+
+  const handleEndTimeChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newEnd = parseDatetimeLocal(e.target.value);
+      // Guard: if start > end, do not apply the filter
+      if (!isValidTimeRange(filters.startTime, newEnd)) return;
+      actions.setTimeRange(filters.startTime, newEnd);
+    },
+    [actions, filters.startTime],
+  );
+
   const tags = buildFilterTags(filters, actions);
 
   // Show first selected level in dropdown (or empty for "All Levels")
@@ -207,6 +287,24 @@ export function SearchBar() {
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Time range picker row */}
+      <div style={rowStyle}>
+        <span style={datetimeLabelStyle}>From:</span>
+        <input
+          type="datetime-local"
+          value={formatDatetimeLocal(filters.startTime)}
+          onChange={handleStartTimeChange}
+          style={datetimeInputStyle}
+        />
+        <span style={datetimeLabelStyle}>To:</span>
+        <input
+          type="datetime-local"
+          value={formatDatetimeLocal(filters.endTime)}
+          onChange={handleEndTimeChange}
+          style={datetimeInputStyle}
+        />
       </div>
 
       {tags.length > 0 && (
