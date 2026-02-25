@@ -155,22 +155,6 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
 };
 
-const datetimeInputStyle: React.CSSProperties = {
-  padding: "8px 12px",
-  backgroundColor: "#ffffff",
-  border: "1px solid #d0d0d0",
-  borderRadius: "4px",
-  color: "#333333",
-  fontSize: "13px",
-  outline: "none",
-};
-
-const datetimeLabelStyle: React.CSSProperties = {
-  color: "#666666",
-  fontSize: "12px",
-  marginRight: "4px",
-};
-
 const selectStyle: React.CSSProperties = {
   padding: "8px 12px",
   backgroundColor: "#ffffff",
@@ -242,26 +226,6 @@ export function SearchBar({ searchInputRef }: SearchBarProps = {}) {
     [actions],
   );
 
-  const handleStartTimeChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newStart = parseDatetimeLocal(e.target.value);
-      // Guard: if start > end, do not apply the filter
-      if (!isValidTimeRange(newStart, filters.endTime)) return;
-      actions.setTimeRange(newStart, filters.endTime);
-    },
-    [actions, filters.endTime],
-  );
-
-  const handleEndTimeChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newEnd = parseDatetimeLocal(e.target.value);
-      // Guard: if start > end, do not apply the filter
-      if (!isValidTimeRange(filters.startTime, newEnd)) return;
-      actions.setTimeRange(filters.startTime, newEnd);
-    },
-    [actions, filters.startTime],
-  );
-
   const tags = buildFilterTags(filters, actions);
 
   // Show first selected level in dropdown (or empty for "All Levels")
@@ -293,24 +257,6 @@ export function SearchBar({ searchInputRef }: SearchBarProps = {}) {
             </option>
           ))}
         </select>
-      </div>
-
-      {/* Time range picker row */}
-      <div style={rowStyle}>
-        <span style={datetimeLabelStyle}>From:</span>
-        <input
-          type="datetime-local"
-          value={formatDatetimeLocal(filters.startTime)}
-          onChange={handleStartTimeChange}
-          style={datetimeInputStyle}
-        />
-        <span style={datetimeLabelStyle}>To:</span>
-        <input
-          type="datetime-local"
-          value={formatDatetimeLocal(filters.endTime)}
-          onChange={handleEndTimeChange}
-          style={datetimeInputStyle}
-        />
       </div>
 
       {tags.length > 0 && (

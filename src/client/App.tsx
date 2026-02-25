@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { FilterProvider } from "./store";
 import { SearchBar } from "./components/SearchBar";
+import { TimeRangeBar } from "./components/TimeRangeBar";
 import { StatsBar } from "./components/StatsBar";
 import { LogViewer } from "./components/LogViewer";
 import { FacetSidebar } from "./components/FacetSidebar";
@@ -63,6 +64,7 @@ function AppContent() {
         <ExportButton />
       </header>
       <SearchBar searchInputRef={searchInputRef} />
+      <TimeRangeBar />
       <StatsBar />
       <div style={bodyStyle}>
         <FacetSidebar />

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { hc } from "hono/client";
 import type { AppType } from "../server/app";
-import type { LogLevel } from "../types";
+import type { HistogramBucket, LogLevel } from "../types";
 import type { FilterState } from "./store";
 
 // ---------------------------------------------------------------------------
@@ -54,6 +54,11 @@ export interface SerializedLogStats {
   ingestionRate: number;
 }
 
+export interface SerializedHistogramResponse {
+  buckets: HistogramBucket[];
+  interval: string;
+}
+
 // ---------------------------------------------------------------------------
 // Serialization helpers
 // ---------------------------------------------------------------------------
@@ -65,6 +70,10 @@ function joinArray(arr: string[] | undefined): string | undefined {
 function serializeJsonFilters(filters: Record<string, string[]> | undefined): string | undefined {
   if (!filters || Object.keys(filters).length === 0) return undefined;
   return JSON.stringify(filters);
+}
+
+function serializeDate(date: Date | undefined): string | undefined {
+  return date?.toISOString();
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +226,127 @@ export interface UseFacetsResult {
   isLoading: boolean;
   error: string | null;
   refetch(): void;
+}
+
+// ---------------------------------------------------------------------------
+// useHistogram - Fetch histogram data with lightweight cache
+// ---------------------------------------------------------------------------
+
+export interface UseHistogramOptions {
+  buckets?: number;
+  search?: string;
+  level?: LogLevel[];
+  service?: string[];
+  host?: string[];
+  source?: string[];
+  startTime?: Date;
+  endTime?: Date;
+  jsonFilters?: Record<string, string[]>;
+}
+
+export interface UseHistogramResult {
+  data: SerializedHistogramResponse | null;
+  isLoading: boolean;
+  error: string | null;
+  refetch(): void;
+}
+
+const HISTOGRAM_CACHE_TTL_MS = 5000;
+const histogramCache = new Map<
+  string,
+  { expiresAt: number; value: SerializedHistogramResponse }
+>();
+
+function histogramCacheKey(options: UseHistogramOptions): string {
+  return JSON.stringify({
+    buckets: options.buckets ?? 30,
+    search: options.search ?? "",
+    level: options.level ?? [],
+    service: options.service ?? [],
+    host: options.host ?? [],
+    source: options.source ?? [],
+    startTime: serializeDate(options.startTime),
+    endTime: serializeDate(options.endTime),
+    jsonFilters: options.jsonFilters ?? {},
+  });
+}
+
+export function useHistogram(options: UseHistogramOptions): UseHistogramResult {
+  const [data, setData] = useState<SerializedHistogramResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fetchKey, setFetchKey] = useState(0);
+
+  const refetch = useCallback(() => setFetchKey((k) => k + 1), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const queryKey = histogramCacheKey(options);
+
+    const cached = histogramCache.get(queryKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      setData(cached.value);
+      setIsLoading(false);
+      setError(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setIsLoading(true);
+    setError(null);
+    const query = {
+      buckets: String(options.buckets ?? 30),
+      search: options.search,
+      level: joinArray(options.level),
+      service: joinArray(options.service),
+      host: joinArray(options.host),
+      source: joinArray(options.source),
+      startTime: serializeDate(options.startTime),
+      endTime: serializeDate(options.endTime),
+      jsonFilters: serializeJsonFilters(options.jsonFilters),
+    };
+
+    client.api.histogram
+      .$get({ query })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((body) => {
+        if (cancelled) return;
+        const parsed = body as SerializedHistogramResponse;
+        histogramCache.set(queryKey, {
+          value: parsed,
+          expiresAt: Date.now() + HISTOGRAM_CACHE_TTL_MS,
+        });
+        setData(parsed);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Unknown error");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    options.buckets,
+    options.search,
+    JSON.stringify(options.level),
+    JSON.stringify(options.service),
+    JSON.stringify(options.host),
+    JSON.stringify(options.source),
+    options.startTime?.getTime(),
+    options.endTime?.getTime(),
+    JSON.stringify(options.jsonFilters),
+    fetchKey,
+  ]);
+
+  return { data, isLoading, error, refetch };
 }
 
 export function useFacets(
