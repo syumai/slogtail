@@ -419,6 +419,9 @@ function buildFilterConditions(params: Partial<LogQueryParams>): string[] {
   if (params.service && params.service.length > 0) {
     conditions.push(buildArrayCondition("service", params.service));
   }
+  if (params.host && params.host.length > 0) {
+    conditions.push(buildArrayCondition("host", params.host));
+  }
   if (params.source && params.source.length > 0) {
     conditions.push(buildArrayCondition("source", params.source));
   }

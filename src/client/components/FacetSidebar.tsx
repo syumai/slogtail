@@ -166,6 +166,7 @@ export function FacetSidebar() {
       search: filters.search,
       level: filters.level.length > 0 ? filters.level : undefined,
       service: filters.service.length > 0 ? filters.service : undefined,
+      host: filters.host.length > 0 ? filters.host : undefined,
       source: filters.source.length > 0 ? filters.source : undefined,
       startTime: filters.startTime,
       endTime: filters.endTime,
@@ -175,6 +176,7 @@ export function FacetSidebar() {
       filters.search,
       filters.level,
       filters.service,
+      filters.host,
       filters.source,
       filters.startTime,
       filters.endTime,
@@ -193,13 +195,15 @@ export function FacetSidebar() {
           return filters.level;
         case "service":
           return filters.service;
+        case "host":
+          return filters.host;
         case "source":
           return filters.source;
         default:
           return filters.jsonFilters[field] ?? [];
       }
     },
-    [filters.level, filters.service, filters.source, filters.jsonFilters],
+    [filters.level, filters.service, filters.host, filters.source, filters.jsonFilters],
   );
 
   // Handle facet value toggle (add/remove from selection)
@@ -213,6 +217,9 @@ export function FacetSidebar() {
           break;
         case "service":
           actions.toggleService(value);
+          break;
+        case "host":
+          actions.toggleHost(value);
           break;
         case "source":
           actions.toggleSource(value);

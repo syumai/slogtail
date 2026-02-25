@@ -19,6 +19,7 @@ function buildFilterTags(
   actions: {
     setLevel(v: LogLevel | undefined): void;
     setService(v: string | undefined): void;
+    setHost(v: string | undefined): void;
     setSource(v: string | undefined): void;
     setSearch(v: string | undefined): void;
     setTimeRange(s: Date | undefined, e: Date | undefined): void;
@@ -38,6 +39,13 @@ function buildFilterTags(
       key: "service",
       label: `service: ${filters.service.join(", ")}`,
       onRemove: () => actions.setService(undefined),
+    });
+  }
+  if (filters.host.length > 0) {
+    tags.push({
+      key: "host",
+      label: `host: ${filters.host.join(", ")}`,
+      onRemove: () => actions.setHost(undefined),
     });
   }
   if (filters.source.length > 0) {

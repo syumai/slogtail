@@ -22,6 +22,9 @@ export function matchesFilter(log: NormalizedLog, filter: WSFilter): boolean {
   if (filter.service && filter.service.length > 0 && !filter.service.includes(log.service ?? "")) {
     return false;
   }
+  if (filter.host && filter.host.length > 0 && !filter.host.includes(log.host ?? "")) {
+    return false;
+  }
   if (filter.source && filter.source.length > 0 && !filter.source.includes(log.source)) {
     return false;
   }
@@ -176,6 +179,11 @@ export class WSHandler {
       filter.service = filterObj.service.filter((v): v is string => typeof v === "string");
     } else if (typeof filterObj.service === "string") {
       filter.service = [filterObj.service];
+    }
+    if (Array.isArray(filterObj.host)) {
+      filter.host = filterObj.host.filter((v): v is string => typeof v === "string");
+    } else if (typeof filterObj.host === "string") {
+      filter.host = [filterObj.host];
     }
     if (Array.isArray(filterObj.source)) {
       filter.source = filterObj.source.filter((v): v is string => typeof v === "string");

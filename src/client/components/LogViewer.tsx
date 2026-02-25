@@ -128,6 +128,7 @@ export function LogViewer() {
       search: filters.search,
       level: filters.level.length > 0 ? filters.level : undefined,
       service: filters.service.length > 0 ? filters.service : undefined,
+      host: filters.host.length > 0 ? filters.host : undefined,
       source: filters.source.length > 0 ? filters.source : undefined,
       startTime: filters.startTime,
       endTime: filters.endTime,
@@ -140,6 +141,7 @@ export function LogViewer() {
       filters.search,
       filters.level,
       filters.service,
+      filters.host,
       filters.source,
       filters.startTime,
       filters.endTime,
@@ -166,10 +168,11 @@ export function LogViewer() {
     () => ({
       level: filters.level.length > 0 ? filters.level : undefined,
       service: filters.service.length > 0 ? filters.service : undefined,
+      host: filters.host.length > 0 ? filters.host : undefined,
       source: filters.source.length > 0 ? filters.source : undefined,
       search: filters.search,
     }),
-    [filters.level, filters.service, filters.source, filters.search],
+    [filters.level, filters.service, filters.host, filters.source, filters.search],
   );
 
   const { isConnected } = useWebSocket({
@@ -248,6 +251,7 @@ export function LogViewer() {
     return baseLogs.filter((log) => {
       if (filters.level.length > 0 && !filters.level.includes(log.level as LogLevel)) return false;
       if (filters.service.length > 0 && !filters.service.includes(log.service ?? "")) return false;
+      if (filters.host.length > 0 && !filters.host.includes(log.host ?? "")) return false;
       if (filters.source.length > 0 && !filters.source.includes(log.source)) return false;
       if (filters.search) {
         const needle = filters.search.toLowerCase();
@@ -270,7 +274,7 @@ export function LogViewer() {
       }
       return true;
     });
-  }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.source, filters.search, filters.jsonFilters]);
+  }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.host, filters.source, filters.search, filters.jsonFilters]);
 
   // Close panel when selected log leaves displayLogs
   useEffect(() => {

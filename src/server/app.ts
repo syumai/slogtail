@@ -49,6 +49,7 @@ function parseJsonFilters(raw: string | undefined): Record<string, string[]> | u
 const logQuerySchema = z.object({
   level: z.string().optional(),
   service: z.string().optional(),
+  host: z.string().optional(),
   source: z.string().optional(),
   search: z.string().optional(),
   startTime: z.coerce.date().optional(),
@@ -87,6 +88,7 @@ const facetQuerySchema = z.object({
   jsonPath: z.string().optional(),
   level: z.string().optional(),
   service: z.string().optional(),
+  host: z.string().optional(),
   source: z.string().optional(),
   search: z.string().optional(),
   startTime: z.coerce.date().optional(),
@@ -206,6 +208,7 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
         const queryParams: LogQueryParams = {
           level: splitLevels(params.level),
           service: splitStrings(params.service),
+          host: splitStrings(params.host),
           source: splitStrings(params.source),
           search: params.search,
           startTime: params.startTime,
@@ -336,6 +339,7 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
         const filters: Partial<LogQueryParams> = {
           level: splitLevels(params.level),
           service: splitStrings(params.service),
+          host: splitStrings(params.host),
           source: splitStrings(params.source),
           search: params.search,
           startTime: params.startTime,

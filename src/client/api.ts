@@ -18,6 +18,7 @@ export interface QueryFilters {
   search?: string;
   level?: LogLevel[];
   service?: string[];
+  host?: string[];
   source?: string[];
   startTime?: Date;
   endTime?: Date;
@@ -98,6 +99,7 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
       search: filters.search,
       level: joinArray(filters.level),
       service: joinArray(filters.service),
+      host: joinArray(filters.host),
       source: joinArray(filters.source),
       startTime: filters.startTime?.toISOString(),
       endTime: filters.endTime?.toISOString(),
@@ -133,6 +135,7 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
     filters.search,
     JSON.stringify(filters.level),
     JSON.stringify(filters.service),
+    JSON.stringify(filters.host),
     JSON.stringify(filters.source),
     filters.startTime?.getTime(),
     filters.endTime?.getTime(),
@@ -242,6 +245,7 @@ export function useFacets(
       jsonPath: jsonPath ?? undefined,
       level: joinArray(filters.level),
       service: joinArray(filters.service),
+      host: joinArray(filters.host),
       source: joinArray(filters.source),
       search: filters.search,
       startTime: filters.startTime?.toISOString(),
@@ -278,6 +282,7 @@ export function useFacets(
     jsonPath,
     JSON.stringify(filters.level),
     JSON.stringify(filters.service),
+    JSON.stringify(filters.host),
     JSON.stringify(filters.source),
     filters.search,
     filters.startTime?.getTime(),

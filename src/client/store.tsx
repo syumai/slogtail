@@ -10,6 +10,7 @@ export interface FilterState {
   search?: string;
   level: LogLevel[];
   service: string[];
+  host: string[];
   source: string[];
   startTime?: Date;
   endTime?: Date;
@@ -24,6 +25,7 @@ export interface FilterState {
 const DEFAULT_FILTER_STATE: FilterState = {
   level: [],
   service: [],
+  host: [],
   source: [],
   limit: 200,
   offset: 0,
@@ -42,6 +44,8 @@ export interface FilterActions {
   toggleLevel(level: LogLevel): void;
   setService(service: string | undefined): void;
   toggleService(service: string): void;
+  setHost(host: string | undefined): void;
+  toggleHost(host: string): void;
   setSource(source: string | undefined): void;
   toggleSource(source: string): void;
   setTimeRange(startTime: Date | undefined, endTime: Date | undefined): void;
@@ -103,6 +107,18 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const toggleService = useCallback(
     (service: string) =>
       setState((s) => ({ ...s, service: toggleInArray(s.service, service), offset: 0 })),
+    [],
+  );
+
+  const setHost = useCallback(
+    (host: string | undefined) =>
+      setState((s) => ({ ...s, host: host ? [host] : [], offset: 0 })),
+    [],
+  );
+
+  const toggleHost = useCallback(
+    (host: string) =>
+      setState((s) => ({ ...s, host: toggleInArray(s.host, host), offset: 0 })),
     [],
   );
 
@@ -177,6 +193,8 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       toggleLevel,
       setService,
       toggleService,
+      setHost,
+      toggleHost,
       setSource,
       toggleSource,
       setTimeRange,
@@ -194,6 +212,8 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       toggleLevel,
       setService,
       toggleService,
+      setHost,
+      toggleHost,
       setSource,
       toggleSource,
       setTimeRange,

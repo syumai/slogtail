@@ -60,6 +60,7 @@ export interface LogEntry {
 export interface LogQueryParams {
   level?: LogLevel[];
   service?: string[];
+  host?: string[];
   source?: string[];
   search?: string;
   startTime?: Date;
@@ -140,6 +141,7 @@ export function resolveField(fieldName: string): string | null {
 export type WSFilter = {
   level?: LogLevel[];
   service?: string[];
+  host?: string[];
   source?: string[];
   search?: string;
 };

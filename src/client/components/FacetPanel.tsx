@@ -110,27 +110,12 @@ export const FacetPanel = memo(function FacetPanel({
   onToggle,
   onRemove,
 }: FacetPanelProps) {
-  // Exclude this facet's own filter so all values are shown with counts
-  // based on other active filters only.
-  const facetFilters = useMemo(() => {
-    const f = { ...filters };
-    const field = definition.jsonPath ?? definition.field;
-    if (field === "level") delete f.level;
-    else if (field === "service") delete f.service;
-    else if (field === "source") delete f.source;
-    // Exclude custom facet's own jsonFilter
-    if (definition.jsonPath && f.jsonFilters) {
-      const jf = { ...f.jsonFilters };
-      delete jf[definition.field];
-      f.jsonFilters = Object.keys(jf).length > 0 ? jf : undefined;
-    }
-    return f;
-  }, [filters, definition.field, definition.jsonPath]);
-
+  // Use the same filters as the log query so counts match displayed results.
+  // Previously-seen values with 0 count are still shown via seenValuesRef below.
   const { values, isLoading } = useFacets(
     definition.field,
     definition.jsonPath,
-    facetFilters,
+    filters,
     refetchIntervalMs,
   );
 
