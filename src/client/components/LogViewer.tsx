@@ -8,6 +8,7 @@ import { LogDetailPanel } from "./LogDetailPanel";
 import { Pagination } from "./Pagination";
 import { useKeyboardNav } from "./useKeyboardNav";
 import { useColumnConfig, type ColumnDefinition } from "./useColumnConfig";
+import { ColumnSettingsPanel } from "./ColumnSettingsPanel";
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -36,6 +37,12 @@ const toolbarLeftStyle: React.CSSProperties = {
   gap: "12px",
 };
 
+const toolbarRightStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+};
+
 const sortButtonStyle: React.CSSProperties = {
   padding: "4px 10px",
   backgroundColor: "#f5f5f5",
@@ -44,6 +51,16 @@ const sortButtonStyle: React.CSSProperties = {
   color: "#333333",
   cursor: "pointer",
   fontSize: "12px",
+};
+
+const iconButtonStyle: React.CSSProperties = {
+  ...sortButtonStyle,
+  minWidth: "34px",
+  padding: "4px 8px",
+};
+
+const settingsWrapStyle: React.CSSProperties = {
+  position: "relative",
 };
 
 const liveTailButtonStyle = (active: boolean): React.CSSProperties => ({
@@ -213,7 +230,16 @@ function nextSortState(prev: SortState, columnId: string): SortState {
 
 export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   const [filters, actions] = useFilters();
-  const { columns, gridTemplateColumns, setColumnWidth } = useColumnConfig();
+  const {
+    columns,
+    allColumns,
+    gridTemplateColumns,
+    setColumnWidth,
+    toggleColumnVisibility,
+    addColumn,
+    removeColumn,
+    resetToDefault,
+  } = useColumnConfig();
   const listRef = useRef<HTMLDivElement>(null);
   const fallbackSearchInputRef = useRef<HTMLInputElement | null>(null);
   const effectiveSearchInputRef = searchInputRef ?? fallbackSearchInputRef;
@@ -221,6 +247,7 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     column: null,
     direction: "asc",
   });
+  const [isColumnSettingsOpen, setColumnSettingsOpen] = useState(false);
 
   // Fetch logs via REST API (used when live tail is off)
   const queryFilters = useMemo(
@@ -504,7 +531,26 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
             </span>
           )}
         </div>
-        <div style={toolbarLeftStyle}>
+        <div style={toolbarRightStyle}>
+          <div style={settingsWrapStyle}>
+            <button
+              type="button"
+              style={iconButtonStyle}
+              onClick={() => setColumnSettingsOpen((prev) => !prev)}
+              title="Column settings"
+            >
+              {"\u2699"}
+            </button>
+            <ColumnSettingsPanel
+              isOpen={isColumnSettingsOpen}
+              columns={allColumns}
+              onClose={() => setColumnSettingsOpen(false)}
+              onToggleColumnVisibility={toggleColumnVisibility}
+              onAddColumn={addColumn}
+              onRemoveColumn={removeColumn}
+              onResetToDefault={resetToDefault}
+            />
+          </div>
           {filters.isLiveTail && (
             <span>
               <span style={connectedDotStyle(isConnected)} />
@@ -560,7 +606,7 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
         {isLoading && !filters.isLiveTail && displayLogs.length === 0 && (
           <div style={loadingStyle}>Loading...</div>
         )}
-        {!isLoading && !error && displayLogs.length === 0 && (
+        {!isLoading && !error && sortedLogs.length === 0 && (
           <div style={emptyStyle}>No logs found</div>
         )}
         {sortedLogs.map((log) => (
