@@ -233,12 +233,12 @@ export class LogDatabase {
       };
     }
 
-    // Level counts
+    // Level counts (case-insensitive grouping via UPPER)
     const levelWhereClause = whereClause
       ? `${whereClause} AND level IS NOT NULL`
       : "WHERE level IS NOT NULL";
     const levelReader = await conn.runAndReadAll(
-      `SELECT level, COUNT(*) as cnt FROM logs ${levelWhereClause} GROUP BY level ORDER BY cnt DESC`
+      `SELECT UPPER(level) as lvl, COUNT(*) as cnt FROM logs ${levelWhereClause} GROUP BY lvl ORDER BY cnt DESC`
     );
     const byLevel: Record<string, number> = {};
     for (const row of levelReader.getRowsJS()) {
@@ -282,13 +282,17 @@ export class LogDatabase {
       ? `CAST(json_extract(_raw, '${escapeSql("$." + jsonPath)}') AS VARCHAR)`
       : `"${field}"`;
 
+    // For the level field, use UPPER() to normalize case variations
+    const isLevelField = field === "level" && jsonPath === null;
+    const selectExpr = isLevelField ? `UPPER(${columnExpr})` : columnExpr;
+
     // Build WHERE conditions from filters, plus exclude NULLs
     const conditions = buildFilterConditions(filters);
     conditions.push(`${columnExpr} IS NOT NULL`);
     const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
     const reader = await conn.runAndReadAll(
-      `SELECT ${columnExpr} as val, COUNT(*) as cnt FROM logs ${whereClause} GROUP BY val ORDER BY cnt DESC, val ASC`
+      `SELECT ${selectExpr} as val, COUNT(*) as cnt FROM logs ${whereClause} GROUP BY val ORDER BY cnt DESC, val ASC`
     );
 
     const values = reader.getRowsJS().map((row) => {
@@ -461,7 +465,15 @@ function appendNullableDouble(appender: DuckDBAppender, value: number | null): v
 // WHERE clause builders (shared across queryLogs, getFacetDistribution, exportLogs)
 // ---------------------------------------------------------------------------
 
-function buildArrayCondition(column: string, values: string[]): string {
+function buildArrayCondition(column: string, values: string[], caseInsensitive = false): string {
+  if (caseInsensitive) {
+    const upperValues = values.map((v) => v.toUpperCase());
+    if (upperValues.length === 1) {
+      return `UPPER(${column}) = '${escapeSql(upperValues[0])}'`;
+    }
+    const escaped = upperValues.map((v) => `'${escapeSql(v)}'`).join(", ");
+    return `UPPER(${column}) IN (${escaped})`;
+  }
   if (values.length === 1) {
     return `${column} = '${escapeSql(values[0])}'`;
   }
@@ -472,7 +484,7 @@ function buildArrayCondition(column: string, values: string[]): string {
 function buildFilterConditions(params: Partial<LogQueryParams>): string[] {
   const conditions: string[] = [];
   if (params.level && params.level.length > 0) {
-    conditions.push(buildArrayCondition("level", params.level));
+    conditions.push(buildArrayCondition("level", params.level, true));
   }
   if (params.service && params.service.length > 0) {
     conditions.push(buildArrayCondition("service", params.service));

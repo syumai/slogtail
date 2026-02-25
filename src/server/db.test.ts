@@ -872,6 +872,138 @@ describe("LogDatabase - cross-field search", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Case-insensitive level filtering (Task 1.2)
+// ---------------------------------------------------------------------------
+
+describe("LogDatabase - case-insensitive level filtering", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+
+    // Insert logs with mixed-case level values
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO", message: "uppercase info" }),
+      makeLog({ _id: 2n, level: "info", message: "lowercase info" }),
+      makeLog({ _id: 3n, level: "Info", message: "mixed case info" }),
+      makeLog({ _id: 4n, level: "ERROR", message: "uppercase error" }),
+      makeLog({ _id: 5n, level: "error", message: "lowercase error" }),
+      makeLog({ _id: 6n, level: "WARN", message: "uppercase warn" }),
+      makeLog({ _id: 7n, level: "warn", message: "lowercase warn" }),
+    ];
+    await db.insertBatch(logs);
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("filters by level case-insensitively when querying with uppercase", async () => {
+    const result = await db.queryLogs({ level: ["INFO"], limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(3);
+    // All three INFO/info/Info logs should be matched
+    const messages = result.logs.map((l) => l.message);
+    expect(messages).toContain("uppercase info");
+    expect(messages).toContain("lowercase info");
+    expect(messages).toContain("mixed case info");
+  });
+
+  it("filters by level case-insensitively when querying with lowercase", async () => {
+    const result = await db.queryLogs({ level: ["error" as never], limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(2);
+    const messages = result.logs.map((l) => l.message);
+    expect(messages).toContain("uppercase error");
+    expect(messages).toContain("lowercase error");
+  });
+
+  it("filters by multiple levels case-insensitively", async () => {
+    const result = await db.queryLogs({ level: ["INFO", "error" as never], limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(5);
+  });
+
+  it("preserves the original level value in query results", async () => {
+    const result = await db.queryLogs({ level: ["INFO"], limit: 10, offset: 0, order: "asc" });
+    const levels = result.logs.map((l) => l.level);
+    // Original casing should be preserved
+    expect(levels).toContain("INFO");
+    expect(levels).toContain("info");
+    expect(levels).toContain("Info");
+  });
+});
+
+describe("LogDatabase - case-insensitive level facet aggregation", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+
+    // Insert logs with mixed-case level values
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO" }),
+      makeLog({ _id: 2n, level: "info" }),
+      makeLog({ _id: 3n, level: "Info" }),
+      makeLog({ _id: 4n, level: "ERROR" }),
+      makeLog({ _id: 5n, level: "error" }),
+      makeLog({ _id: 6n, level: "WARN" }),
+    ];
+    await db.insertBatch(logs);
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("groups level facets by uppercase-normalized value", async () => {
+    const dist = await db.getFacetDistribution("level", null, {});
+    expect(dist.field).toBe("level");
+
+    // Should have 3 groups: INFO(3), ERROR(2), WARN(1)
+    expect(dist.values).toHaveLength(3);
+
+    const infoFacet = dist.values.find((v) => v.value === "INFO");
+    expect(infoFacet?.count).toBe(3);
+
+    const errorFacet = dist.values.find((v) => v.value === "ERROR");
+    expect(errorFacet?.count).toBe(2);
+
+    const warnFacet = dist.values.find((v) => v.value === "WARN");
+    expect(warnFacet?.count).toBe(1);
+  });
+
+  it("does not create separate facets for different casings of the same level", async () => {
+    const dist = await db.getFacetDistribution("level", null, {});
+    // There should be no "info" or "Info" facet values - only "INFO"
+    const facetValues = dist.values.map((v) => v.value);
+    expect(facetValues).not.toContain("info");
+    expect(facetValues).not.toContain("Info");
+    expect(facetValues).not.toContain("error");
+  });
+
+  it("applies filters correctly when computing level facets", async () => {
+    // Add host data to distinguish
+    const dbWithHosts = new LogDatabase();
+    await dbWithHosts.initialize(":memory:");
+    const logs = [
+      makeLog({ _id: 1n, level: "INFO", host: "host-a" }),
+      makeLog({ _id: 2n, level: "info", host: "host-a" }),
+      makeLog({ _id: 3n, level: "ERROR", host: "host-b" }),
+      makeLog({ _id: 4n, level: "error", host: "host-a" }),
+    ];
+    await dbWithHosts.insertBatch(logs);
+
+    const dist = await dbWithHosts.getFacetDistribution("level", null, { host: ["host-a"] });
+    // host-a has: INFO(1) + info(1) = INFO(2), error(1) = ERROR(1)
+    expect(dist.values).toHaveLength(2);
+    expect(dist.values.find((v) => v.value === "INFO")?.count).toBe(2);
+    expect(dist.values.find((v) => v.value === "ERROR")?.count).toBe(1);
+
+    await dbWithHosts.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Test helpers
 // ---------------------------------------------------------------------------
 
