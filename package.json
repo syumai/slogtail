@@ -1,8 +1,36 @@
 {
   "name": "lduck",
   "version": "0.0.1",
+  "description": "Pipe-friendly JSON log viewer powered by DuckDB",
   "type": "module",
-  "private": true,
+  "bin": {
+    "lduck": "dist/index.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "keywords": [
+    "log",
+    "log-viewer",
+    "json",
+    "duckdb",
+    "cli",
+    "stdin",
+    "pipe",
+    "structured-logging"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/syumai/lduck.git"
+  },
+  "homepage": "https://github.com/syumai/lduck",
+  "bugs": {
+    "url": "https://github.com/syumai/lduck/issues"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build && vite build --ssr src/cli/index.ts",

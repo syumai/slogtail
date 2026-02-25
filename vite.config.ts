@@ -51,6 +51,9 @@ export default defineConfig(({ command, isSsrBuild }) => ({
             ...module.builtinModules,
             ...module.builtinModules.map((m) => `node:${m}`),
           ],
+          output: {
+            banner: "#!/usr/bin/env node",
+          },
         },
       }
     : {
