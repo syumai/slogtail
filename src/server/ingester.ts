@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { createInterface, type Interface as ReadlineInterface } from "node:readline";
 import type { LogDatabase } from "./db";
-import type { NormalizedLog, IngesterOptions } from "../types";
+import type { NormalizedLog, IngesterOptions, IngestionStats } from "../types";
 import { resolveField } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -19,6 +19,11 @@ export class Ingester {
   private rl: ReadlineInterface | null = null;
   private stopped = false;
   private flushing: Promise<void> | null = null;
+
+  // Sliding window for ingestion rate calculation
+  private static readonly RATE_WINDOW_MS = 10_000; // 10 seconds
+  private batchRecords: Array<{ timestamp: number; size: number }> = [];
+  private lastBatchTime: Date | null = null;
 
   constructor(db: LogDatabase, options: IngesterOptions) {
     this.db = db;
@@ -97,6 +102,31 @@ export class Ingester {
 
   on(event: "batch", listener: (logs: ReadonlyArray<NormalizedLog>) => void): void {
     this.emitter.on(event, listener);
+  }
+
+  /**
+   * Returns the current ingestion statistics including the smoothed
+   * ingestion rate (logs/second) over a 10-second sliding window.
+   */
+  getIngestionStats(): IngestionStats {
+    const now = Date.now();
+    const windowStart = now - Ingester.RATE_WINDOW_MS;
+
+    // Prune expired records outside the window
+    this.batchRecords = this.batchRecords.filter(
+      (r) => r.timestamp >= windowStart,
+    );
+
+    // Sum logs within the window
+    const totalLogs = this.batchRecords.reduce((sum, r) => sum + r.size, 0);
+
+    // Rate = total logs in window / window duration in seconds
+    const ingestionRate = totalLogs / (Ingester.RATE_WINDOW_MS / 1000);
+
+    return {
+      ingestionRate,
+      lastBatchTime: this.lastBatchTime,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -213,6 +243,12 @@ export class Ingester {
     try {
       await this.db.insertBatch(batch);
       await this.db.evictOldRows(this.options.maxRows);
+
+      // Record batch for ingestion rate calculation
+      const now = Date.now();
+      this.batchRecords.push({ timestamp: now, size: batch.length });
+      this.lastBatchTime = new Date(now);
+
       this.emitter.emit("batch", batch);
     } catch (err) {
       console.error("[ingester] doFlush error:", err);

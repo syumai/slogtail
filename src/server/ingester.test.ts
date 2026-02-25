@@ -866,6 +866,191 @@ describe("Ingester - non-object JSON values are skipped", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Ingestion Stats (sliding window rate calculation)
+// ---------------------------------------------------------------------------
+
+describe("Ingester - getIngestionStats", () => {
+  let db: LogDatabase;
+  let ingester: Ingester;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    ingester = new Ingester(db, {
+      ...defaultOptions,
+      batchSize: 100,
+      flushIntervalMs: 200,
+    });
+  });
+
+  afterEach(async () => {
+    await ingester.stop();
+    await db.close();
+    vi.useRealTimers();
+  });
+
+  it("returns zero rate and null lastBatchTime when no data has been ingested", () => {
+    const stats = ingester.getIngestionStats();
+    expect(stats.ingestionRate).toBe(0);
+    expect(stats.lastBatchTime).toBeNull();
+  });
+
+  it("returns ingestion rate after a batch flush", async () => {
+    ingester.startTimer();
+
+    const batchPromise = new Promise<void>((resolve) => {
+      ingester.on("batch", () => resolve());
+    });
+
+    ingester.ingestLines(
+      Array.from({ length: 10 }, (_, i) =>
+        JSON.stringify({ message: `msg${i}`, level: "INFO" }),
+      ),
+    );
+
+    // Advance past the flush interval so the batch gets flushed
+    await vi.advanceTimersByTimeAsync(300);
+    await batchPromise;
+
+    const stats = ingester.getIngestionStats();
+    expect(stats.ingestionRate).toBeGreaterThan(0);
+    expect(stats.lastBatchTime).toBeInstanceOf(Date);
+  });
+
+  it("calculates rate based on sliding window (10 seconds)", async () => {
+    ingester.startTimer();
+
+    const batchPromise = new Promise<void>((resolve) => {
+      ingester.on("batch", () => resolve());
+    });
+
+    // Ingest 10 logs and flush
+    ingester.ingestLines(
+      Array.from({ length: 10 }, (_, i) =>
+        JSON.stringify({ message: `msg${i}`, level: "INFO" }),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(300);
+    await batchPromise;
+
+    const stats1 = ingester.getIngestionStats();
+    expect(stats1.ingestionRate).toBeGreaterThan(0);
+
+    // Advance time beyond the 10-second window
+    await vi.advanceTimersByTimeAsync(11000);
+
+    const stats2 = ingester.getIngestionStats();
+    // Old data should have expired from the window
+    expect(stats2.ingestionRate).toBe(0);
+  });
+
+  it("smooths rate over multiple batches within the window", async () => {
+    ingester.startTimer();
+
+    let batchCount = 0;
+    const waitForBatch = (n: number) =>
+      new Promise<void>((resolve) => {
+        const check = () => {
+          if (batchCount >= n) resolve();
+        };
+        ingester.on("batch", () => {
+          batchCount++;
+          check();
+        });
+        check();
+      });
+
+    // First batch: 10 logs at T=0
+    ingester.ingestLines(
+      Array.from({ length: 10 }, (_, i) =>
+        JSON.stringify({ message: `batch1-${i}`, level: "INFO" }),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(300);
+    await waitForBatch(1);
+
+    // Second batch: 20 logs at T=2s
+    await vi.advanceTimersByTimeAsync(2000);
+    ingester.ingestLines(
+      Array.from({ length: 20 }, (_, i) =>
+        JSON.stringify({ message: `batch2-${i}`, level: "INFO" }),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(300);
+    await waitForBatch(2);
+
+    const stats = ingester.getIngestionStats();
+    // Total logs within window: 30, window size 10s
+    // Rate = 30 / 10 = 3 logs/sec
+    expect(stats.ingestionRate).toBe(3);
+  });
+
+  it("updates lastBatchTime on each flush", async () => {
+    ingester.startTimer();
+
+    let batchCount = 0;
+    const waitForBatch = (n: number) =>
+      new Promise<void>((resolve) => {
+        const check = () => {
+          if (batchCount >= n) resolve();
+        };
+        ingester.on("batch", () => {
+          batchCount++;
+          check();
+        });
+        check();
+      });
+
+    // First batch
+    ingester.ingestLines([
+      JSON.stringify({ message: "first", level: "INFO" }),
+    ]);
+    await vi.advanceTimersByTimeAsync(300);
+    await waitForBatch(1);
+
+    const stats1 = ingester.getIngestionStats();
+    const firstBatchTime = stats1.lastBatchTime;
+    expect(firstBatchTime).not.toBeNull();
+
+    // Second batch after 1 second
+    await vi.advanceTimersByTimeAsync(1000);
+    ingester.ingestLines([
+      JSON.stringify({ message: "second", level: "INFO" }),
+    ]);
+    await vi.advanceTimersByTimeAsync(300);
+    await waitForBatch(2);
+
+    const stats2 = ingester.getIngestionStats();
+    expect(stats2.lastBatchTime).not.toBeNull();
+    expect(stats2.lastBatchTime!.getTime()).toBeGreaterThan(
+      firstBatchTime!.getTime(),
+    );
+  });
+
+  it("rate calculation divides total logs by the fixed window size (10s)", async () => {
+    ingester.startTimer();
+
+    const batchPromise = new Promise<void>((resolve) => {
+      ingester.on("batch", () => resolve());
+    });
+
+    // Ingest 50 logs and flush
+    ingester.ingestLines(
+      Array.from({ length: 50 }, (_, i) =>
+        JSON.stringify({ message: `msg${i}`, level: "INFO" }),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(300);
+    await batchPromise;
+
+    const stats = ingester.getIngestionStats();
+    // 50 logs within a 10-second window = 5 logs/sec
+    expect(stats.ingestionRate).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Additional field alias coverage
 // ---------------------------------------------------------------------------
 

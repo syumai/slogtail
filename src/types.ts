@@ -167,6 +167,15 @@ export interface ErrorResponse {
   };
 }
 
+// --- Ingestion Stats ---
+
+export interface IngestionStats {
+  /** Recent ingestion rate (logs/second) */
+  ingestionRate: number;
+  /** Timestamp of the last batch flush */
+  lastBatchTime: Date | null;
+}
+
 // --- Ingester Options ---
 
 export interface IngesterOptions {
