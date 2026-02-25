@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { parseRelayArgs, parseLine, flushWithRetry, computeBackoffDelay } from "./relay";
-import type { FlushResult } from "./relay";
+import { parseRelayArgs, parseLine, flushWithRetry, computeBackoffDelay, accumulateFlushResult, formatRelaySummary } from "./relay";
+import type { FlushResult, RelaySummary } from "./relay";
 
 describe("parseRelayArgs", () => {
   // -------------------------------------------------------------------------
@@ -344,5 +344,95 @@ describe("flushWithRetry", () => {
     // 4xx errors should not be retried - only 1 call
     expect(result).toEqual<FlushResult>({ accepted: 0, errors: 1, retries: 0 });
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// accumulateFlushResult
+// ---------------------------------------------------------------------------
+
+describe("accumulateFlushResult", () => {
+  it("accumulates a successful FlushResult into an empty summary", () => {
+    const summary: RelaySummary = { totalSent: 0, totalErrors: 0, totalRetries: 0 };
+    const result: FlushResult = { accepted: 5, errors: 0, retries: 0 };
+
+    const updated = accumulateFlushResult(summary, result);
+
+    expect(updated).toEqual<RelaySummary>({
+      totalSent: 5,
+      totalErrors: 0,
+      totalRetries: 0,
+    });
+  });
+
+  it("accumulates a failed FlushResult with retries", () => {
+    const summary: RelaySummary = { totalSent: 10, totalErrors: 0, totalRetries: 1 };
+    const result: FlushResult = { accepted: 0, errors: 3, retries: 3 };
+
+    const updated = accumulateFlushResult(summary, result);
+
+    expect(updated).toEqual<RelaySummary>({
+      totalSent: 10,
+      totalErrors: 3,
+      totalRetries: 4,
+    });
+  });
+
+  it("accumulates multiple FlushResults correctly", () => {
+    let summary: RelaySummary = { totalSent: 0, totalErrors: 0, totalRetries: 0 };
+
+    summary = accumulateFlushResult(summary, { accepted: 10, errors: 0, retries: 0 });
+    summary = accumulateFlushResult(summary, { accepted: 5, errors: 0, retries: 2 });
+    summary = accumulateFlushResult(summary, { accepted: 0, errors: 3, retries: 3 });
+
+    expect(summary).toEqual<RelaySummary>({
+      totalSent: 15,
+      totalErrors: 3,
+      totalRetries: 5,
+    });
+  });
+
+  it("does not mutate the original summary", () => {
+    const summary: RelaySummary = { totalSent: 5, totalErrors: 1, totalRetries: 2 };
+    const result: FlushResult = { accepted: 3, errors: 0, retries: 0 };
+
+    const updated = accumulateFlushResult(summary, result);
+
+    expect(summary).toEqual<RelaySummary>({ totalSent: 5, totalErrors: 1, totalRetries: 2 });
+    expect(updated).toEqual<RelaySummary>({ totalSent: 8, totalErrors: 1, totalRetries: 2 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatRelaySummary
+// ---------------------------------------------------------------------------
+
+describe("formatRelaySummary", () => {
+  it("formats a summary with all zeros", () => {
+    const summary: RelaySummary = { totalSent: 0, totalErrors: 0, totalRetries: 0 };
+    expect(formatRelaySummary(summary)).toBe(
+      "[relay] Done. Sent: 0, Errors: 0, Retries: 0",
+    );
+  });
+
+  it("formats a summary with successful sends", () => {
+    const summary: RelaySummary = { totalSent: 42, totalErrors: 0, totalRetries: 0 };
+    expect(formatRelaySummary(summary)).toBe(
+      "[relay] Done. Sent: 42, Errors: 0, Retries: 0",
+    );
+  });
+
+  it("formats a summary with errors and retries", () => {
+    const summary: RelaySummary = { totalSent: 100, totalErrors: 5, totalRetries: 8 };
+    expect(formatRelaySummary(summary)).toBe(
+      "[relay] Done. Sent: 100, Errors: 5, Retries: 8",
+    );
+  });
+
+  it("formats a summary with only errors", () => {
+    const summary: RelaySummary = { totalSent: 0, totalErrors: 10, totalRetries: 3 };
+    expect(formatRelaySummary(summary)).toBe(
+      "[relay] Done. Sent: 0, Errors: 10, Retries: 3",
+    );
   });
 });

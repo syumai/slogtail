@@ -116,6 +116,34 @@ export interface FlushResult {
   retries: number;
 }
 
+// ---------------------------------------------------------------------------
+// Relay summary types and helpers (exported for testing)
+// ---------------------------------------------------------------------------
+
+/** Accumulated send statistics for the entire relay session. */
+export interface RelaySummary {
+  totalSent: number;
+  totalErrors: number;
+  totalRetries: number;
+}
+
+/** Create a new RelaySummary with a FlushResult accumulated (immutable). */
+export function accumulateFlushResult(
+  summary: RelaySummary,
+  result: FlushResult,
+): RelaySummary {
+  return {
+    totalSent: summary.totalSent + result.accepted,
+    totalErrors: summary.totalErrors + result.errors,
+    totalRetries: summary.totalRetries + result.retries,
+  };
+}
+
+/** Format a RelaySummary as a human-readable string for stderr output. */
+export function formatRelaySummary(summary: RelaySummary): string {
+  return `[relay] Done. Sent: ${summary.totalSent}, Errors: ${summary.totalErrors}, Retries: ${summary.totalRetries}`;
+}
+
 type FetchFn = (url: string, init: RequestInit) => Promise<Response>;
 
 interface BackoffOptions {
@@ -207,9 +235,7 @@ export async function runRelay(args: string[]): Promise<void> {
 
   let buffer: Record<string, unknown>[] = [];
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
-  let totalSent = 0;
-  let totalErrors = 0;
-  let totalRetries = 0;
+  let summary: RelaySummary = { totalSent: 0, totalErrors: 0, totalRetries: 0 };
   let stdinClosed = false;
 
   async function flush(): Promise<void> {
@@ -219,9 +245,7 @@ export async function runRelay(args: string[]): Promise<void> {
     buffer = [];
 
     const result = await flushWithRetry(batch, ingestUrl, opts.maxRetries);
-    totalSent += result.accepted;
-    totalErrors += result.errors;
-    totalRetries += result.retries;
+    summary = accumulateFlushResult(summary, result);
   }
 
   function resetFlushTimer(): void {
@@ -266,11 +290,7 @@ export async function runRelay(args: string[]): Promise<void> {
       }
       await flush();
 
-      if (totalSent > 0 || totalErrors > 0) {
-        console.error(
-          `[relay] Done. Sent: ${totalSent}, Errors: ${totalErrors}, Retries: ${totalRetries}`,
-        );
-      }
+      console.error(formatRelaySummary(summary));
       resolve();
     });
   });
