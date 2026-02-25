@@ -20,7 +20,7 @@ const tooltipStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
   zIndex: 5,
   transform: "translate(-50%, -100%)",
-  marginTop: "-6px",
+  marginTop: "8px",
 };
 
 export interface TimeRangeSelection {
