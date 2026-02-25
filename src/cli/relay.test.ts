@@ -103,16 +103,14 @@ describe("parseRelayArgs", () => {
 });
 
 describe("parseLine", () => {
-  const cases: {
+  // Cases where the result can be compared with toEqual (no dynamic fields)
+  const exactCases: {
     name: string;
     line: string;
     service: string | undefined;
     expected: Record<string, unknown> | null;
   }[] = [
     { name: "valid JSON object", line: '{"level":"INFO","message":"hello"}', service: undefined, expected: { level: "INFO", message: "hello" } },
-    { name: "non-JSON plain text", line: "[WARN] plain text log", service: undefined, expected: { message: "[WARN] plain text log", level: "INFO" } },
-    { name: "truncated JSON", line: '{"level":"INFO', service: undefined, expected: { message: '{"level":"INFO', level: "INFO" } },
-    { name: "malformed JSON braces", line: "{{{malformed", service: undefined, expected: { message: "{{{malformed", level: "INFO" } },
     { name: "empty string", line: "", service: undefined, expected: null },
     { name: "whitespace only", line: "   ", service: undefined, expected: null },
     { name: "JSON array", line: "[1, 2, 3]", service: undefined, expected: null },
@@ -120,10 +118,34 @@ describe("parseLine", () => {
     { name: "JSON string", line: '"just a string"', service: undefined, expected: null },
     { name: "injects service when missing", line: '{"level":"INFO"}', service: "api", expected: { level: "INFO", service: "api" } },
     { name: "preserves existing service", line: '{"level":"INFO","service":"auth"}', service: "api", expected: { level: "INFO", service: "auth" } },
-    { name: "injects service into non-JSON", line: "plain text", service: "gateway", expected: { message: "plain text", level: "INFO", service: "gateway" } },
   ];
 
-  it.each(cases)("$name", ({ line, service, expected }) => {
+  it.each(exactCases)("$name", ({ line, service, expected }) => {
     expect(parseLine(line, service)).toEqual(expected);
+  });
+
+  // Cases for non-JSON lines (contain dynamic timestamp)
+  const nonJsonCases: {
+    name: string;
+    line: string;
+    service: string | undefined;
+    expectedMessage: string;
+    expectedService?: string;
+  }[] = [
+    { name: "non-JSON plain text", line: "[WARN] plain text log", service: undefined, expectedMessage: "[WARN] plain text log" },
+    { name: "truncated JSON", line: '{"level":"INFO', service: undefined, expectedMessage: '{"level":"INFO' },
+    { name: "malformed JSON braces", line: "{{{malformed", service: undefined, expectedMessage: "{{{malformed" },
+    { name: "injects service into non-JSON", line: "plain text", service: "gateway", expectedMessage: "plain text", expectedService: "gateway" },
+  ];
+
+  it.each(nonJsonCases)("$name", ({ line, service, expectedMessage, expectedService }) => {
+    const result = parseLine(line, service);
+    expect(result).not.toBeNull();
+    expect(result!.message).toBe(expectedMessage);
+    expect(result!.level).toBe("INFO");
+    expect(typeof result!.timestamp).toBe("string");
+    if (expectedService !== undefined) {
+      expect(result!.service).toBe(expectedService);
+    }
   });
 });

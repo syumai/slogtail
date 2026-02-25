@@ -107,9 +107,11 @@ describe("Ingester - JSON parsing", () => {
     expect(batch[0].level).toBe("INFO");
     expect(batch[1].message).toBe("this is not valid json");
     expect(batch[1].level).toBe("INFO");
+    expect(batch[1].timestamp).not.toBeNull();
     expect(batch[2].message).toBe("valid2");
     expect(batch[3].message).toBe("{broken json");
     expect(batch[3].level).toBe("INFO");
+    expect(batch[3].timestamp).not.toBeNull();
     expect(batch[4].message).toBe("valid3");
   });
 
@@ -1051,10 +1053,14 @@ describe("Ingester - ingestLines", () => {
 
     const result = await db.queryLogs({ limit: 100, offset: 0, order: "asc" });
     expect(result.total).toBe(3);
-    expect(result.logs[0].message).toBe("valid");
-    expect(result.logs[1].message).toBe("not-json");
-    expect(result.logs[1].level).toBe("INFO");
-    expect(result.logs[2].message).toBe("also-valid");
+    // non-JSON line has a timestamp so it sorts before null-timestamp lines
+    const messages = result.logs.map((l) => l.message);
+    expect(messages).toContain("valid");
+    expect(messages).toContain("not-json");
+    expect(messages).toContain("also-valid");
+    const notJson = result.logs.find((l) => l.message === "not-json")!;
+    expect(notJson.level).toBe("INFO");
+    expect(notJson.timestamp).not.toBeNull();
   });
 
   it("emits batch event from ingestLines", async () => {
@@ -1149,15 +1155,18 @@ describe("Ingester - plain text line handling", () => {
       expect(batch).toHaveLength(1);
       expect(batch[0].message).toBe(expectedMessage);
       expect(batch[0].level).toBe("INFO");
-      expect(batch[0].timestamp).toBeNull();
+      expect(batch[0].timestamp).not.toBeNull();
       expect(batch[0].service).toBeNull();
       expect(batch[0].trace_id).toBeNull();
       expect(batch[0].host).toBeNull();
       expect(batch[0].duration_ms).toBeNull();
       expect(batch[0].source).toBe("default");
-      // _raw must be valid JSON
+      // _raw must be valid JSON with timestamp
       expect(() => JSON.parse(batch[0]._raw)).not.toThrow();
-      expect(JSON.parse(batch[0]._raw)).toEqual({ message: expectedMessage, level: "INFO" });
+      const raw = JSON.parse(batch[0]._raw);
+      expect(raw.message).toBe(expectedMessage);
+      expect(raw.level).toBe("INFO");
+      expect(typeof raw.timestamp).toBe("string");
     },
   );
 
@@ -1175,10 +1184,13 @@ describe("Ingester - plain text line handling", () => {
 
     const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
     expect(result.total).toBe(2);
-    expect(result.logs[0].message).toBe("json log");
-    expect(result.logs[0].level).toBe("INFO");
-    expect(result.logs[1].message).toBe("plain text log");
-    expect(result.logs[1].level).toBe("INFO");
-    expect(result.logs[1]._raw).toEqual({ message: "plain text log", level: "INFO" });
+    const jsonLog = result.logs.find((l) => l.message === "json log")!;
+    const plainLog = result.logs.find((l) => l.message === "plain text log")!;
+    expect(jsonLog.level).toBe("INFO");
+    expect(plainLog.level).toBe("INFO");
+    expect(plainLog.timestamp).not.toBeNull();
+    expect(plainLog._raw.message).toBe("plain text log");
+    expect(plainLog._raw.level).toBe("INFO");
+    expect(typeof plainLog._raw.timestamp).toBe("string");
   });
 });

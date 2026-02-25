@@ -76,7 +76,7 @@ export function parseLine(
   try {
     parsed = JSON.parse(trimmed);
   } catch {
-    parsed = { message: trimmed, level: "INFO" };
+    parsed = { message: trimmed, level: "INFO", timestamp: new Date().toISOString() };
   }
 
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
