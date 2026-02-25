@@ -84,7 +84,7 @@ describe("Ingester - JSON parsing", () => {
     expect(batch[1].level).toBe("ERROR");
   });
 
-  it("skips invalid JSON lines and continues processing", async () => {
+  it("treats invalid JSON lines as plain text and ingests them", async () => {
     const lines = [
       JSON.stringify({ message: "valid1", level: "INFO" }),
       "this is not valid json",
@@ -101,11 +101,16 @@ describe("Ingester - JSON parsing", () => {
     ingester.start(stream);
     const batch = await batchPromise;
 
-    // Only 3 valid lines should be processed
-    expect(batch).toHaveLength(3);
+    // All 5 lines should be processed (non-JSON as plain text)
+    expect(batch).toHaveLength(5);
     expect(batch[0].message).toBe("valid1");
-    expect(batch[1].message).toBe("valid2");
-    expect(batch[2].message).toBe("valid3");
+    expect(batch[0].level).toBe("INFO");
+    expect(batch[1].message).toBe("this is not valid json");
+    expect(batch[1].level).toBeNull();
+    expect(batch[2].message).toBe("valid2");
+    expect(batch[3].message).toBe("{broken json");
+    expect(batch[3].level).toBeNull();
+    expect(batch[4].message).toBe("valid3");
   });
 
   it("skips empty lines", async () => {
@@ -1035,7 +1040,7 @@ describe("Ingester - ingestLines", () => {
     expect(result.logs[1].message).toBe("http-log-2");
   });
 
-  it("skips invalid JSON in ingestLines", async () => {
+  it("ingests invalid JSON as plain text via ingestLines", async () => {
     ingester.ingestLines([
       JSON.stringify({ message: "valid" }),
       "not-json",
@@ -1045,7 +1050,11 @@ describe("Ingester - ingestLines", () => {
     await ingester.stop();
 
     const result = await db.queryLogs({ limit: 100, offset: 0, order: "asc" });
-    expect(result.total).toBe(2);
+    expect(result.total).toBe(3);
+    expect(result.logs[0].message).toBe("valid");
+    expect(result.logs[1].message).toBe("not-json");
+    expect(result.logs[1].level).toBeNull();
+    expect(result.logs[2].message).toBe("also-valid");
   });
 
   it("emits batch event from ingestLines", async () => {
@@ -1077,5 +1086,99 @@ describe("Ingester - ingestLines", () => {
     expect(result.logs[0].level).toBe("ERROR");
     expect(result.logs[0].message).toBe("alias test");
     expect(result.logs[0].service).toBe("api");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Plain text line handling (table-driven)
+// ---------------------------------------------------------------------------
+
+describe("Ingester - plain text line handling", () => {
+  let db: LogDatabase;
+  let ingester: Ingester;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    ingester = new Ingester(db, defaultOptions);
+  });
+
+  afterEach(async () => {
+    await ingester.stop();
+    await db.close();
+  });
+
+  const plainTextCases = [
+    {
+      name: "simple text",
+      input: "Starting server on port 8080",
+      expectedMessage: "Starting server on port 8080",
+    },
+    {
+      name: "broken JSON",
+      input: "{broken json",
+      expectedMessage: "{broken json",
+    },
+    {
+      name: "text with double quotes",
+      input: 'Error: unexpected token "}" at line 42',
+      expectedMessage: 'Error: unexpected token "}" at line 42',
+    },
+    {
+      name: "Japanese text",
+      input: "日本語のログメッセージ",
+      expectedMessage: "日本語のログメッセージ",
+    },
+    {
+      name: "text with tab and single quotes",
+      input: "line with\ttab and 'quotes'",
+      expectedMessage: "line with\ttab and 'quotes'",
+    },
+  ];
+
+  it.each(plainTextCases)(
+    "ingests plain text as log: $name",
+    async ({ input, expectedMessage }) => {
+      const stream = createReadableFromLines([input]);
+      const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+        ingester.on("batch", (logs) => resolve(logs));
+      });
+      ingester.start(stream);
+      const batch = await batchPromise;
+
+      expect(batch).toHaveLength(1);
+      expect(batch[0].message).toBe(expectedMessage);
+      expect(batch[0].level).toBeNull();
+      expect(batch[0].timestamp).toBeNull();
+      expect(batch[0].service).toBeNull();
+      expect(batch[0].trace_id).toBeNull();
+      expect(batch[0].host).toBeNull();
+      expect(batch[0].duration_ms).toBeNull();
+      expect(batch[0].source).toBe("default");
+      // _raw must be valid JSON
+      expect(() => JSON.parse(batch[0]._raw)).not.toThrow();
+      expect(JSON.parse(batch[0]._raw)).toEqual({ message: expectedMessage });
+    },
+  );
+
+  it("plain text logs are queryable from the database", async () => {
+    const lines = [
+      JSON.stringify({ message: "json log", level: "INFO" }),
+      "plain text log",
+    ];
+    const stream = createReadableFromLines(lines);
+    const batchPromise = new Promise<ReadonlyArray<NormalizedLog>>((resolve) => {
+      ingester.on("batch", (logs) => resolve(logs));
+    });
+    ingester.start(stream);
+    await batchPromise;
+
+    const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(2);
+    expect(result.logs[0].message).toBe("json log");
+    expect(result.logs[0].level).toBe("INFO");
+    expect(result.logs[1].message).toBe("plain text log");
+    expect(result.logs[1].level).toBeNull();
+    expect(result.logs[1]._raw).toEqual({ message: "plain text log" });
   });
 });

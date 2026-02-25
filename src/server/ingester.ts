@@ -108,18 +108,21 @@ export class Ingester {
     if (trimmed === "") return;
 
     let parsed: Record<string, unknown>;
+    let raw: string;
     try {
       parsed = JSON.parse(trimmed);
+      raw = trimmed;
     } catch {
-      // Invalid JSON - skip
-      return;
+      // Non-JSON line: wrap as plain-text log entry
+      parsed = { message: trimmed };
+      raw = JSON.stringify(parsed);
     }
 
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       return;
     }
 
-    const normalized = this.normalize(parsed, trimmed);
+    const normalized = this.normalize(parsed, raw);
     this.buffer.push(normalized);
 
     if (this.buffer.length >= this.options.batchSize) {

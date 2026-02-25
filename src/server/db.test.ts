@@ -224,6 +224,21 @@ describe("LogDatabase - insertBatch", () => {
     const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
     expect(result.logs[0]._raw).toEqual(rawJson);
   });
+
+  it("preserves plain text _raw data through insert and query", async () => {
+    const log = makeLog({
+      _id: 1n,
+      _raw: JSON.stringify({ message: "plain text line" }),
+      message: "plain text line",
+      level: null,
+    });
+    await db.insertBatch([log]);
+
+    const result = await db.queryLogs({ limit: 10, offset: 0, order: "asc" });
+    expect(result.logs[0]._raw).toEqual({ message: "plain text line" });
+    expect(result.logs[0].message).toBe("plain text line");
+    expect(result.logs[0].level).toBeNull();
+  });
 });
 
 describe("LogDatabase - evictOldRows", () => {

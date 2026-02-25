@@ -442,10 +442,24 @@ function buildWhereClause(params: Partial<LogQueryParams>): string {
 // ---------------------------------------------------------------------------
 
 function rowToLogEntry(row: unknown[]): LogEntry {
+  let rawParsed: Record<string, unknown>;
+  if (typeof row[2] === "string") {
+    try {
+      const parsed = JSON.parse(row[2]);
+      rawParsed = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+        ? parsed
+        : { _value: parsed };
+    } catch {
+      rawParsed = { message: row[2] };
+    }
+  } else {
+    rawParsed = (row[2] as Record<string, unknown>) ?? {};
+  }
+
   return {
     _id: BigInt(row[0] as number | bigint),
     _ingested: jsToDate(row[1]),
-    _raw: typeof row[2] === "string" ? JSON.parse(row[2]) : (row[2] as Record<string, unknown>),
+    _raw: rawParsed,
     timestamp: row[3] !== null ? jsToDate(row[3]) : null,
     level: row[4] as string | null,
     message: row[5] as string | null,
