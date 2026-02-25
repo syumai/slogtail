@@ -123,6 +123,40 @@ describe("matchesFilter", () => {
     expect(matchesFilter(log, { level: [] })).toBe(true);
     expect(matchesFilter(log, { service: [] })).toBe(true);
   });
+
+  // -------------------------------------------------------------------------
+  // Case-insensitive level matching (Requirement 3.1 / Task 1.3)
+  // -------------------------------------------------------------------------
+
+  it("matches level case-insensitively: lowercase log level vs uppercase filter", () => {
+    const log = makeNormalizedLog({ level: "error" });
+    expect(matchesFilter(log, { level: ["ERROR"] })).toBe(true);
+  });
+
+  it("matches level case-insensitively: uppercase log level vs lowercase filter", () => {
+    const log = makeNormalizedLog({ level: "ERROR" });
+    expect(matchesFilter(log, { level: ["error" as never] })).toBe(true);
+  });
+
+  it("matches level case-insensitively: mixed case log level vs uppercase filter", () => {
+    const log = makeNormalizedLog({ level: "Error" });
+    expect(matchesFilter(log, { level: ["ERROR"] })).toBe(true);
+  });
+
+  it("matches level case-insensitively: mixed case in both log and filter", () => {
+    const log = makeNormalizedLog({ level: "Warn" });
+    expect(matchesFilter(log, { level: ["warn" as never, "error" as never] })).toBe(true);
+  });
+
+  it("does not match level case-insensitively when level is different", () => {
+    const log = makeNormalizedLog({ level: "info" });
+    expect(matchesFilter(log, { level: ["ERROR", "WARN"] })).toBe(false);
+  });
+
+  it("handles null log level with case-insensitive filter", () => {
+    const log = makeNormalizedLog({ level: null });
+    expect(matchesFilter(log, { level: ["ERROR"] })).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

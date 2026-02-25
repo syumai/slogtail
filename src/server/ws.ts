@@ -16,7 +16,7 @@ import type {
  * Empty/undefined filter matches everything.
  */
 export function matchesFilter(log: NormalizedLog, filter: WSFilter): boolean {
-  if (filter.level && filter.level.length > 0 && !filter.level.includes(log.level as any)) {
+  if (filter.level && filter.level.length > 0 && !filter.level.map(l => l.toUpperCase()).includes(log.level?.toUpperCase() as any)) {
     return false;
   }
   if (filter.service && filter.service.length > 0 && !filter.service.includes(log.service ?? "")) {
