@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { FilterProvider } from "./store";
 import { SearchBar } from "./components/SearchBar";
 import { StatsBar } from "./components/StatsBar";
@@ -53,18 +54,20 @@ const mainContentStyle: React.CSSProperties = {
 // ---------------------------------------------------------------------------
 
 function AppContent() {
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
   return (
     <div style={appStyle}>
       <header style={headerStyle}>
         <h1 style={titleStyle}>lduck</h1>
         <ExportButton />
       </header>
-      <SearchBar />
+      <SearchBar searchInputRef={searchInputRef} />
       <StatsBar />
       <div style={bodyStyle}>
         <FacetSidebar />
         <div style={mainContentStyle}>
-          <LogViewer />
+          <LogViewer searchInputRef={searchInputRef} />
         </div>
       </div>
     </div>

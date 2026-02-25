@@ -206,7 +206,12 @@ const tagRemoveStyle: React.CSSProperties = {
 // Component
 // ---------------------------------------------------------------------------
 
-export function SearchBar() {
+interface SearchBarProps {
+  /** Optional ref to the search input element, used by keyboard navigation (/ key). */
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
+}
+
+export function SearchBar({ searchInputRef }: SearchBarProps = {}) {
   const [filters, actions] = useFilters();
   const [searchInput, setSearchInput] = useState(filters.search ?? "");
 
@@ -267,6 +272,7 @@ export function SearchBar() {
       <div style={rowStyle}>
         <form onSubmit={handleSearchSubmit} style={{ display: "contents" }}>
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Search logs..."
             value={searchInput}

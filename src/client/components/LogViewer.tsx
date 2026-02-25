@@ -6,6 +6,7 @@ import type { LogLevel } from "../../types";
 import { LogRow } from "./LogRow";
 import { LogDetailPanel } from "./LogDetailPanel";
 import { Pagination } from "./Pagination";
+import { useKeyboardNav } from "./useKeyboardNav";
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -118,9 +119,16 @@ const loadingStyle: React.CSSProperties = {
 
 const MAX_LIVE_LOGS = 500;
 
-export function LogViewer() {
+interface LogViewerProps {
+  /** Ref to the search input element, used by keyboard navigation (/ key). */
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
+}
+
+export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   const [filters, actions] = useFilters();
   const listRef = useRef<HTMLDivElement>(null);
+  const fallbackSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const effectiveSearchInputRef = searchInputRef ?? fallbackSearchInputRef;
 
   // Fetch logs via REST API (used when live tail is off)
   const queryFilters = useMemo(
@@ -209,35 +217,6 @@ export function LogViewer() {
     }
   }, [filters.isLiveTail, liveLogs.length]);
 
-  // Selected log for detail panel
-  const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
-
-  const handleLogSelect = useCallback((logId: string) => {
-    setSelectedLogId((prev) => (prev === logId ? null : logId));
-  }, []);
-
-  const handleDetailClose = useCallback(() => {
-    setSelectedLogId(null);
-  }, []);
-
-  const handleTraceIdClick = useCallback(
-    (traceId: string) => {
-      actions.setSearch(`trace_id:${traceId}`);
-    },
-    [actions],
-  );
-
-  // Close panel on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && selectedLogId) {
-        setSelectedLogId(null);
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [selectedLogId]);
-
   const handleSortToggle = useCallback(() => {
     actions.setOrder(filters.order === "desc" ? "asc" : "desc");
   }, [filters.order, actions]);
@@ -283,12 +262,72 @@ export function LogViewer() {
     });
   }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.host, filters.source, filters.search, filters.jsonFilters]);
 
-  // Close panel when selected log leaves displayLogs
+  // -------------------------------------------------------------------------
+  // Selection state: track by index, derive selectedLogId from displayLogs
+  // -------------------------------------------------------------------------
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+
+  // Derive selectedLogId from the index
+  const selectedLogId = useMemo(() => {
+    if (selectedIndex < 0 || selectedIndex >= displayLogs.length) return null;
+    return displayLogs[selectedIndex]?._id ?? null;
+  }, [selectedIndex, displayLogs]);
+
+  // When a row is clicked, toggle selection
+  const handleLogSelect = useCallback(
+    (logId: string) => {
+      const idx = displayLogs.findIndex((l) => l._id === logId);
+      setSelectedIndex((prev) => (prev === idx ? -1 : idx));
+    },
+    [displayLogs],
+  );
+
+  const handleDetailClose = useCallback(() => {
+    setSelectedIndex(-1);
+  }, []);
+
+  const handleTraceIdClick = useCallback(
+    (traceId: string) => {
+      actions.setSearch(`trace_id:${traceId}`);
+    },
+    [actions],
+  );
+
+  // Open detail panel for the currently selected index.
+  // onOpenDetail is called by useKeyboardNav when Enter is pressed.
+  // The detail panel is shown when selectedLogId is not null (derived from selectedIndex).
+  // No extra action needed here -- the index is already set.
+  const handleOpenDetail = useCallback(() => {}, []);
+
+  // -------------------------------------------------------------------------
+  // Keyboard navigation
+  // -------------------------------------------------------------------------
+  useKeyboardNav({
+    totalItems: displayLogs.length,
+    selectedIndex,
+    isDetailOpen: selectedLogId !== null,
+    onSelectIndex: setSelectedIndex,
+    onOpenDetail: handleOpenDetail,
+    onCloseDetail: handleDetailClose,
+    searchInputRef: effectiveSearchInputRef,
+  });
+
+  // Scroll selected row into view
   useEffect(() => {
-    if (selectedLogId && !displayLogs.some((l) => l._id === selectedLogId)) {
-      setSelectedLogId(null);
+    if (selectedIndex < 0 || !listRef.current) return;
+    const rows = listRef.current.querySelectorAll("[role='button']");
+    const target = rows[selectedIndex];
+    if (target) {
+      target.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
-  }, [displayLogs, selectedLogId]);
+  }, [selectedIndex]);
+
+  // Reset selection when displayLogs change and the selected index is out of bounds
+  useEffect(() => {
+    if (selectedIndex >= displayLogs.length) {
+      setSelectedIndex(displayLogs.length > 0 ? displayLogs.length - 1 : -1);
+    }
+  }, [displayLogs.length, selectedIndex]);
 
   const selectedLog = useMemo(
     () => (selectedLogId ? displayLogs.find((l) => l._id === selectedLogId) ?? null : null),
