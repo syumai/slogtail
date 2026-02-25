@@ -10,6 +10,64 @@ import type {
 } from "../types";
 
 // ---------------------------------------------------------------------------
+// Search Query Parsing
+// ---------------------------------------------------------------------------
+
+/** Parsed search query result */
+export interface ParsedSearch {
+  /** null = cross-field search, string = field-specific search */
+  field: string | null;
+  value: string;
+}
+
+/** Valid field names for field:value search syntax */
+const SEARCHABLE_FIELDS = new Set([
+  "message",
+  "service",
+  "host",
+  "trace_id",
+  "level",
+]);
+
+/**
+ * Parse a search query string into a structured ParsedSearch.
+ *
+ * Supports `field:value` syntax for field-specific searches.
+ * Falls back to plain text cross-field search when:
+ * - The field name is not recognized
+ * - The field name is empty (e.g., ":value")
+ * - The value is empty (e.g., "host:")
+ * - The query contains spaces before the colon
+ */
+export function parseSearchQuery(search: string): ParsedSearch {
+  const colonIndex = search.indexOf(":");
+  if (colonIndex <= 0) {
+    // No colon, or colon is at position 0 (e.g., ":value")
+    return { field: null, value: search };
+  }
+
+  const field = search.substring(0, colonIndex);
+  const value = search.substring(colonIndex + 1);
+
+  // Field name must not contain spaces
+  if (field.includes(" ")) {
+    return { field: null, value: search };
+  }
+
+  // Value must not be empty
+  if (value === "") {
+    return { field: null, value: search };
+  }
+
+  // Field must be a recognized searchable field
+  if (!SEARCHABLE_FIELDS.has(field)) {
+    return { field: null, value: search };
+  }
+
+  return { field, value };
+}
+
+// ---------------------------------------------------------------------------
 // SQL Constants
 // ---------------------------------------------------------------------------
 
@@ -426,7 +484,17 @@ function buildFilterConditions(params: Partial<LogQueryParams>): string[] {
     conditions.push(buildArrayCondition("source", params.source));
   }
   if (params.search) {
-    conditions.push(`message ILIKE '%${escapeSql(params.search)}%'`);
+    const parsed = parseSearchQuery(params.search);
+    if (parsed.field !== null) {
+      // Field-specific search: field ILIKE '%value%'
+      conditions.push(`${parsed.field} ILIKE '%${escapeSql(parsed.value)}%'`);
+    } else {
+      // Cross-field search: OR across message, service, host, trace_id, and _raw
+      const kw = escapeSql(parsed.value);
+      conditions.push(
+        `(message ILIKE '%${kw}%' OR service ILIKE '%${kw}%' OR host ILIKE '%${kw}%' OR trace_id ILIKE '%${kw}%' OR CAST(_raw AS VARCHAR) ILIKE '%${kw}%')`
+      );
+    }
   }
   if (params.startTime) {
     conditions.push(`timestamp >= '${params.startTime.toISOString()}'`);

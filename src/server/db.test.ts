@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { LogDatabase } from "./db";
+import { LogDatabase, parseSearchQuery } from "./db";
 import type { NormalizedLog } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -687,6 +687,187 @@ describe("LogDatabase - exportLogs", () => {
     const data = JSON.parse(text);
     expect(data).toHaveLength(1);
     expect(data[0].service).toBe("worker");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseSearchQuery unit tests
+// ---------------------------------------------------------------------------
+
+describe("parseSearchQuery", () => {
+  it("returns plain text search for a simple keyword", () => {
+    const result = parseSearchQuery("error");
+    expect(result).toEqual({ field: null, value: "error" });
+  });
+
+  it("returns plain text search for an empty string", () => {
+    const result = parseSearchQuery("");
+    expect(result).toEqual({ field: null, value: "" });
+  });
+
+  it("parses field:value syntax correctly", () => {
+    const result = parseSearchQuery("host:server-1");
+    expect(result).toEqual({ field: "host", value: "server-1" });
+  });
+
+  it("parses service:value syntax correctly", () => {
+    const result = parseSearchQuery("service:api");
+    expect(result).toEqual({ field: "service", value: "api" });
+  });
+
+  it("parses message:value syntax correctly", () => {
+    const result = parseSearchQuery("message:timeout");
+    expect(result).toEqual({ field: "message", value: "timeout" });
+  });
+
+  it("parses trace_id:value syntax correctly", () => {
+    const result = parseSearchQuery("trace_id:abc-123");
+    expect(result).toEqual({ field: "trace_id", value: "abc-123" });
+  });
+
+  it("parses level:value syntax correctly", () => {
+    const result = parseSearchQuery("level:ERROR");
+    expect(result).toEqual({ field: "level", value: "ERROR" });
+  });
+
+  it("falls back to plain text for unknown field names", () => {
+    const result = parseSearchQuery("unknownfield:value");
+    expect(result).toEqual({ field: null, value: "unknownfield:value" });
+  });
+
+  it("falls back to plain text when field name is empty (e.g., ':value')", () => {
+    const result = parseSearchQuery(":value");
+    expect(result).toEqual({ field: null, value: ":value" });
+  });
+
+  it("falls back to plain text when value is empty (e.g., 'host:')", () => {
+    const result = parseSearchQuery("host:");
+    expect(result).toEqual({ field: null, value: "host:" });
+  });
+
+  it("handles value containing colons (e.g., 'host:server:8080')", () => {
+    const result = parseSearchQuery("host:server:8080");
+    expect(result).toEqual({ field: "host", value: "server:8080" });
+  });
+
+  it("falls back to plain text for text with spaces even if containing colon", () => {
+    const result = parseSearchQuery("some error: timeout");
+    expect(result).toEqual({ field: null, value: "some error: timeout" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-field search (横断検索) integration tests
+// ---------------------------------------------------------------------------
+
+describe("LogDatabase - cross-field search", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+
+    const logs = [
+      makeLog({
+        _id: 1n,
+        message: "request started",
+        service: "api-gateway",
+        host: "prod-server-1",
+        trace_id: "trace-abc-123",
+        _raw: JSON.stringify({ message: "request started", service: "api-gateway", host: "prod-server-1", trace_id: "trace-abc-123" }),
+      }),
+      makeLog({
+        _id: 2n,
+        message: "connection failed",
+        service: "database",
+        host: "db-server-2",
+        trace_id: "trace-def-456",
+        _raw: JSON.stringify({ message: "connection failed", service: "database", host: "db-server-2", trace_id: "trace-def-456", extra: "unique-payload" }),
+      }),
+      makeLog({
+        _id: 3n,
+        message: "task completed",
+        service: "worker",
+        host: "worker-node-3",
+        trace_id: null,
+        _raw: JSON.stringify({ message: "task completed", service: "worker", host: "worker-node-3" }),
+      }),
+    ];
+    await db.insertBatch(logs);
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("searches across message field", async () => {
+    const result = await db.queryLogs({ search: "connection", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0]._id).toBe(2n);
+  });
+
+  it("searches across service field", async () => {
+    const result = await db.queryLogs({ search: "gateway", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0]._id).toBe(1n);
+  });
+
+  it("searches across host field", async () => {
+    const result = await db.queryLogs({ search: "db-server", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0]._id).toBe(2n);
+  });
+
+  it("searches across trace_id field", async () => {
+    const result = await db.queryLogs({ search: "trace-abc", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0]._id).toBe(1n);
+  });
+
+  it("searches across _raw JSON field", async () => {
+    const result = await db.queryLogs({ search: "unique-payload", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0]._id).toBe(2n);
+  });
+
+  it("returns multiple results when keyword matches across different fields", async () => {
+    // "server" appears in host of logs 1 and 2
+    const result = await db.queryLogs({ search: "server", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(2);
+  });
+
+  it("uses field:value syntax to search only in a specific field", async () => {
+    const result = await db.queryLogs({ search: "service:worker", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0]._id).toBe(3n);
+  });
+
+  it("uses field:value syntax for host field", async () => {
+    const result = await db.queryLogs({ search: "host:prod-server-1", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0]._id).toBe(1n);
+  });
+
+  it("uses field:value with partial match (ILIKE)", async () => {
+    const result = await db.queryLogs({ search: "host:prod", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(1);
+    expect(result.logs[0]._id).toBe(1n);
+  });
+
+  it("falls back to cross-field search for invalid field:value syntax", async () => {
+    // "unknownfield:value" is not a valid field, so should search across all fields
+    const result = await db.queryLogs({ search: "unknownfield:value", limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(0);
+  });
+
+  it("falls back to cross-field search when value is empty in field:value", async () => {
+    // "host:" has empty value, should be treated as plain text search across all fields.
+    // DuckDB formats JSON with spaces (e.g., "host": "value"), so "host:" without space
+    // won't match the _raw JSON representation. This test verifies the fallback behavior:
+    // it treats "host:" as plain text and searches across all fields.
+    const result = await db.queryLogs({ search: "host:", limit: 10, offset: 0, order: "asc" });
+    // No field contains the literal "host:" substring, so 0 results is expected
+    expect(result.total).toBe(0);
   });
 });
 
