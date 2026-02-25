@@ -3,6 +3,7 @@ import { useLogs, useWebSocket } from "../api";
 import type { SerializedLogEntry } from "../api";
 import { useFilters } from "../store";
 import { LogRow } from "./LogRow";
+import { LogDetailPanel } from "./LogDetailPanel";
 import { Pagination } from "./Pagination";
 
 // ---------------------------------------------------------------------------
@@ -204,6 +205,28 @@ export function LogViewer() {
     }
   }, [filters.isLiveTail, liveLogs.length]);
 
+  // Selected log for detail panel
+  const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
+
+  const handleLogSelect = useCallback((logId: string) => {
+    setSelectedLogId((prev) => (prev === logId ? null : logId));
+  }, []);
+
+  const handleDetailClose = useCallback(() => {
+    setSelectedLogId(null);
+  }, []);
+
+  // Close panel on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedLogId) {
+        setSelectedLogId(null);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectedLogId]);
+
   const handleSortToggle = useCallback(() => {
     actions.setOrder(filters.order === "desc" ? "asc" : "desc");
   }, [filters.order, actions]);
@@ -247,6 +270,18 @@ export function LogViewer() {
       return true;
     });
   }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.source, filters.search, filters.jsonFilters]);
+
+  // Close panel when selected log leaves displayLogs
+  useEffect(() => {
+    if (selectedLogId && !displayLogs.some((l) => l._id === selectedLogId)) {
+      setSelectedLogId(null);
+    }
+  }, [displayLogs, selectedLogId]);
+
+  const selectedLog = useMemo(
+    () => (selectedLogId ? displayLogs.find((l) => l._id === selectedLogId) ?? null : null),
+    [selectedLogId, displayLogs],
+  );
 
   return (
     <div style={containerStyle}>
@@ -304,7 +339,12 @@ export function LogViewer() {
           <div style={emptyStyle}>No logs found</div>
         )}
         {displayLogs.map((log) => (
-          <LogRow key={log._id} log={log} />
+          <LogRow
+            key={log._id}
+            log={log}
+            isSelected={log._id === selectedLogId}
+            onSelect={handleLogSelect}
+          />
         ))}
       </div>
 
@@ -317,6 +357,9 @@ export function LogViewer() {
           onOffsetChange={actions.setOffset}
         />
       )}
+
+      {/* Detail slide-over panel */}
+      <LogDetailPanel log={selectedLog} onClose={handleDetailClose} />
     </div>
   );
 }

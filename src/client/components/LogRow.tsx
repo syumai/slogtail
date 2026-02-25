@@ -1,4 +1,4 @@
-import { memo, useState, useCallback } from "react";
+import { memo, useCallback } from "react";
 import type { SerializedLogEntry } from "../api";
 
 // ---------------------------------------------------------------------------
@@ -40,14 +40,15 @@ function sourceColor(source: string): string {
 // Styles
 // ---------------------------------------------------------------------------
 
-const rowStyle = (isExpanded: boolean): React.CSSProperties => ({
+const rowStyle = (isSelected: boolean): React.CSSProperties => ({
   display: "grid",
   gridTemplateColumns: "160px 60px 1fr 100px",
   gap: "8px",
   padding: "6px 16px",
   cursor: "pointer",
-  backgroundColor: isExpanded ? "#1e1e3a" : "transparent",
+  backgroundColor: isSelected ? "#1e1e3a" : "transparent",
   borderBottom: "1px solid #1a1a2e",
+  borderLeft: isSelected ? "3px solid #4a9eff" : "3px solid transparent",
   alignItems: "center",
   fontSize: "13px",
   fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
@@ -87,58 +88,24 @@ const sourceTagStyle = (color: string): React.CSSProperties => ({
   whiteSpace: "nowrap",
 });
 
-const expandedStyle: React.CSSProperties = {
-  padding: "12px 16px 12px 32px",
-  backgroundColor: "#12122a",
-  borderBottom: "1px solid #2a2a4a",
-  fontSize: "12px",
-  fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
-};
-
-const fieldRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "8px",
-  padding: "2px 0",
-};
-
-const fieldNameStyle: React.CSSProperties = {
-  color: "#6a6a9a",
-  minWidth: "120px",
-  flexShrink: 0,
-};
-
-const fieldValueStyle: React.CSSProperties = {
-  color: "#d0d0e0",
-  wordBreak: "break-all",
-};
-
-const rawJsonStyle: React.CSSProperties = {
-  marginTop: "8px",
-  padding: "8px",
-  backgroundColor: "#0a0a1a",
-  borderRadius: "4px",
-  color: "#a0a0c0",
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-all",
-  maxHeight: "300px",
-  overflow: "auto",
-  fontSize: "12px",
-};
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 interface LogRowProps {
   log: SerializedLogEntry;
+  isSelected: boolean;
+  onSelect: (logId: string) => void;
 }
 
-export const LogRow = memo(function LogRow({ log }: LogRowProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const toggle = useCallback(() => {
-    setIsExpanded((prev) => !prev);
-  }, []);
+export const LogRow = memo(function LogRow({
+  log,
+  isSelected,
+  onSelect,
+}: LogRowProps) {
+  const handleClick = useCallback(() => {
+    onSelect(log._id);
+  }, [onSelect, log._id]);
 
   const ts = log.timestamp
     ? new Date(log.timestamp).toISOString().replace("T", " ").slice(0, 23)
@@ -147,73 +114,19 @@ export const LogRow = memo(function LogRow({ log }: LogRowProps) {
   const sColor = sourceColor(log.source);
 
   return (
-    <>
-      <div
-        style={rowStyle(isExpanded)}
-        onClick={toggle}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") toggle();
-        }}
-      >
-        <span style={timestampStyle}>{ts}</span>
-        <span style={levelStyle(log.level)}>{log.level ?? "-"}</span>
-        <span style={messageStyle}>{log.message ?? ""}</span>
-        <span style={sourceTagStyle(sColor)}>{log.source}</span>
-      </div>
-      {isExpanded && (
-        <div style={expandedStyle}>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>_id</span>
-            <span style={fieldValueStyle}>{log._id}</span>
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>_ingested</span>
-            <span style={fieldValueStyle}>{log._ingested}</span>
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>timestamp</span>
-            <span style={fieldValueStyle}>{log.timestamp ?? "null"}</span>
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>level</span>
-            <span style={fieldValueStyle}>{log.level ?? "null"}</span>
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>message</span>
-            <span style={fieldValueStyle}>{log.message ?? "null"}</span>
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>service</span>
-            <span style={fieldValueStyle}>{log.service ?? "null"}</span>
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>trace_id</span>
-            <span style={fieldValueStyle}>{log.trace_id ?? "null"}</span>
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>host</span>
-            <span style={fieldValueStyle}>{log.host ?? "null"}</span>
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>duration_ms</span>
-            <span style={fieldValueStyle}>
-              {log.duration_ms !== null ? String(log.duration_ms) : "null"}
-            </span>
-          </div>
-          <div style={fieldRowStyle}>
-            <span style={fieldNameStyle}>source</span>
-            <span style={fieldValueStyle}>{log.source}</span>
-          </div>
-          <div>
-            <span style={fieldNameStyle}>_raw</span>
-            <pre style={rawJsonStyle}>
-              {JSON.stringify(log._raw, null, 2)}
-            </pre>
-          </div>
-        </div>
-      )}
-    </>
+    <div
+      style={rowStyle(isSelected)}
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") handleClick();
+      }}
+    >
+      <span style={timestampStyle}>{ts}</span>
+      <span style={levelStyle(log.level)}>{log.level ?? "-"}</span>
+      <span style={messageStyle}>{log.message ?? ""}</span>
+      <span style={sourceTagStyle(sColor)}>{log.source}</span>
+    </div>
   );
 });

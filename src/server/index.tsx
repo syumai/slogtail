@@ -7,7 +7,7 @@ export function createApp(scriptSrc: string, setup?: (app: Hono) => void) {
   setup?.(app)
   app.get("*", (c) => {
     const html = renderToString(
-      <html lang="en">
+      <html lang="en" style={{ margin: 0, padding: 0, height: "100%" }}>
         <head>
           <meta charSet="UTF-8" />
           <meta name="viewport" content="width=device-width,initial-scale=1.0" />
@@ -15,7 +15,7 @@ export function createApp(scriptSrc: string, setup?: (app: Hono) => void) {
           <ViteClient />
           <ReactRefresh />
         </head>
-        <body>
+        <body style={{ margin: 0, padding: 0, height: "100%" }}>
           <div id="root"></div>
           <script type="module" src={scriptSrc} />
         </body>
