@@ -193,7 +193,7 @@ export const LogRow = memo(function LogRow({
           const normalizedLevel = value.toUpperCase();
           return (
             <span key={column.id} style={levelStyle(normalizedLevel)}>
-              {value || "-"}
+              {normalizedLevel || "-"}
             </span>
           );
         }
