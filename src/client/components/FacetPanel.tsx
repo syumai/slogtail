@@ -37,7 +37,7 @@ const headerStyle: React.CSSProperties = {
   userSelect: "none",
   fontSize: "12px",
   fontWeight: "bold",
-  color: "#a0a0c0",
+  color: "#666666",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
@@ -45,7 +45,7 @@ const headerStyle: React.CSSProperties = {
 const removeButtonStyle: React.CSSProperties = {
   background: "none",
   border: "none",
-  color: "#666",
+  color: "#999",
   cursor: "pointer",
   fontSize: "14px",
   padding: "0 2px",
@@ -66,8 +66,8 @@ const valueItemStyle = (isSelected: boolean): React.CSSProperties => ({
   borderRadius: "3px",
   cursor: "pointer",
   fontSize: "12px",
-  color: isSelected ? "#fff" : "#c0c0d0",
-  backgroundColor: isSelected ? "#2a4a8a" : "transparent",
+  color: isSelected ? "#ffffff" : "#333333",
+  backgroundColor: isSelected ? "#1a73e8" : "transparent",
   fontWeight: isSelected ? "bold" : "normal",
   transition: "background-color 0.15s ease",
 });
@@ -81,21 +81,21 @@ const valueNameStyle: React.CSSProperties = {
 
 const valueCountStyle = (isSelected: boolean): React.CSSProperties => ({
   flexShrink: 0,
-  color: isSelected ? "#8ab4ff" : "#6a6a9a",
+  color: isSelected ? "#bbd4ff" : "#999999",
   fontSize: "11px",
 });
 
 const emptyStyle: React.CSSProperties = {
   padding: "4px 12px",
   fontSize: "11px",
-  color: "#555",
+  color: "#999999",
   fontStyle: "italic",
 };
 
 const loadingStyle: React.CSSProperties = {
   padding: "4px 12px",
   fontSize: "11px",
-  color: "#6a6a9a",
+  color: "#999999",
 };
 
 // ---------------------------------------------------------------------------
@@ -191,7 +191,7 @@ export const FacetPanel = memo(function FacetPanel({
                 onMouseEnter={(e) => {
                   if (!isSelected) {
                     (e.currentTarget as HTMLElement).style.backgroundColor =
-                      "#1a1a3a";
+                      "#f0f0f0";
                   }
                 }}
                 onMouseLeave={(e) => {

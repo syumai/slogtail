@@ -132,8 +132,8 @@ const containerStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: "8px",
   padding: "12px 16px",
-  backgroundColor: "#1a1a2e",
-  borderBottom: "1px solid #2a2a4a",
+  backgroundColor: "#f5f5f5",
+  borderBottom: "1px solid #e0e0e0",
 };
 
 const rowStyle: React.CSSProperties = {
@@ -147,36 +147,36 @@ const inputStyle: React.CSSProperties = {
   flex: 1,
   minWidth: "200px",
   padding: "8px 12px",
-  backgroundColor: "#0f0f23",
-  border: "1px solid #3a3a5a",
+  backgroundColor: "#ffffff",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
-  color: "#e0e0e0",
+  color: "#333333",
   fontSize: "14px",
   outline: "none",
 };
 
 const datetimeInputStyle: React.CSSProperties = {
   padding: "8px 12px",
-  backgroundColor: "#0f0f23",
-  border: "1px solid #3a3a5a",
+  backgroundColor: "#ffffff",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
-  color: "#e0e0e0",
+  color: "#333333",
   fontSize: "13px",
   outline: "none",
 };
 
 const datetimeLabelStyle: React.CSSProperties = {
-  color: "#a0a0c0",
+  color: "#666666",
   fontSize: "12px",
   marginRight: "4px",
 };
 
 const selectStyle: React.CSSProperties = {
   padding: "8px 12px",
-  backgroundColor: "#0f0f23",
-  border: "1px solid #3a3a5a",
+  backgroundColor: "#ffffff",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
-  color: "#e0e0e0",
+  color: "#333333",
   fontSize: "14px",
   cursor: "pointer",
 };
@@ -186,9 +186,9 @@ const tagStyle: React.CSSProperties = {
   alignItems: "center",
   gap: "6px",
   padding: "4px 10px",
-  backgroundColor: "#2a2a4a",
+  backgroundColor: "#e0e0e0",
   borderRadius: "12px",
-  color: "#c0c0e0",
+  color: "#333333",
   fontSize: "12px",
 };
 

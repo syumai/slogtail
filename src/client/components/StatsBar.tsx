@@ -74,11 +74,11 @@ export function formatTimeRange(
 // ---------------------------------------------------------------------------
 
 const LEVEL_COLORS: Record<string, string> = {
-  DEBUG: "#888888",
-  INFO: "#4a9eff",
-  WARN: "#ffcc00",
-  ERROR: "#ff4444",
-  FATAL: "#cc44cc",
+  DEBUG: "#6b7280",
+  INFO: "#2563eb",
+  WARN: "#d97706",
+  ERROR: "#dc2626",
+  FATAL: "#9333ea",
 };
 
 // ---------------------------------------------------------------------------
@@ -90,8 +90,8 @@ const containerStyle: React.CSSProperties = {
   alignItems: "center",
   gap: "16px",
   padding: "8px 16px",
-  backgroundColor: "#16162a",
-  borderBottom: "1px solid #2a2a4a",
+  backgroundColor: "#fafafa",
+  borderBottom: "1px solid #e0e0e0",
   fontSize: "13px",
   flexWrap: "wrap",
 };
@@ -108,7 +108,7 @@ const levelBadgeStyle = (color: string): React.CSSProperties => ({
   gap: "4px",
   padding: "2px 8px",
   borderRadius: "4px",
-  backgroundColor: color + "22",
+  backgroundColor: color + "18",
   color: color,
   fontWeight: "bold",
   fontSize: "12px",
@@ -121,7 +121,7 @@ const barContainerStyle: React.CSSProperties = {
   minWidth: "120px",
   borderRadius: "3px",
   overflow: "hidden",
-  backgroundColor: "#0f0f23",
+  backgroundColor: "#e0e0e0",
 };
 
 const barSegmentStyle = (color: string, widthPercent: number): React.CSSProperties => ({
@@ -132,21 +132,21 @@ const barSegmentStyle = (color: string, widthPercent: number): React.CSSProperti
 });
 
 const errorRateStyle = (rate: number): React.CSSProperties => ({
-  color: rate > 10 ? "#ff4444" : rate > 5 ? "#ffcc00" : "#4a9eff",
+  color: rate > 10 ? "#dc2626" : rate > 5 ? "#d97706" : "#2563eb",
   fontWeight: "bold",
 });
 
 const totalStyle: React.CSSProperties = {
-  color: "#a0a0c0",
+  color: "#666666",
 };
 
 const ingestionRateStyle: React.CSSProperties = {
-  color: "#4a9eff",
+  color: "#2563eb",
   fontWeight: "bold",
 };
 
 const timeRangeStyle: React.CSSProperties = {
-  color: "#6a6a9a",
+  color: "#999999",
   fontSize: "12px",
 };
 

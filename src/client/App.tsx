@@ -14,8 +14,8 @@ const appStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   height: "100vh",
-  backgroundColor: "#0f0f23",
-  color: "#d0d0e0",
+  backgroundColor: "#ffffff",
+  color: "#333333",
   fontFamily:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
 };
@@ -25,14 +25,14 @@ const headerStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   padding: "8px 16px",
-  backgroundColor: "#0a0a1a",
-  borderBottom: "1px solid #2a2a4a",
+  backgroundColor: "#f5f5f5",
+  borderBottom: "1px solid #e0e0e0",
 };
 
 const titleStyle: React.CSSProperties = {
   fontSize: "18px",
   fontWeight: "bold",
-  color: "#e0e0ff",
+  color: "#333333",
   margin: 0,
 };
 

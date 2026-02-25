@@ -251,6 +251,7 @@ describe("Type compatibility", () => {
       byLevel: { DEBUG: 100, INFO: 500, WARN: 200, ERROR: 150, FATAL: 50 },
       errorRate: 0.2,
       timeRange: { min: new Date(), max: new Date() },
+      ingestionRate: 0,
     };
     expect(stats.total).toBe(1000);
     expect(stats.errorRate).toBe(0.2);
@@ -262,6 +263,7 @@ describe("Type compatibility", () => {
       byLevel: {},
       errorRate: 0,
       timeRange: { min: null, max: null },
+      ingestionRate: 0,
     };
     expect(stats.timeRange.min).toBeNull();
     expect(stats.timeRange.max).toBeNull();

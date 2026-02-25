@@ -10,23 +10,23 @@ const containerStyle: React.CSSProperties = {
   justifyContent: "center",
   gap: "12px",
   padding: "12px 16px",
-  backgroundColor: "#1a1a2e",
-  borderTop: "1px solid #2a2a4a",
+  backgroundColor: "#f5f5f5",
+  borderTop: "1px solid #e0e0e0",
   fontSize: "13px",
 };
 
 const buttonStyle = (disabled: boolean): React.CSSProperties => ({
   padding: "6px 14px",
-  backgroundColor: disabled ? "#1a1a2e" : "#2a2a4a",
-  border: "1px solid #3a3a5a",
+  backgroundColor: disabled ? "#f5f5f5" : "#ffffff",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
-  color: disabled ? "#555" : "#c0c0e0",
+  color: disabled ? "#bbb" : "#333333",
   cursor: disabled ? "not-allowed" : "pointer",
   fontSize: "13px",
 });
 
 const infoStyle: React.CSSProperties = {
-  color: "#a0a0c0",
+  color: "#666666",
 };
 
 // ---------------------------------------------------------------------------

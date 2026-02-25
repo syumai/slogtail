@@ -54,8 +54,8 @@ function saveCustomFacets(facets: FacetDefinition[]): void {
 const sidebarStyle: React.CSSProperties = {
   width: "240px",
   minWidth: "240px",
-  backgroundColor: "#12122a",
-  borderRight: "1px solid #2a2a4a",
+  backgroundColor: "#fafafa",
+  borderRight: "1px solid #e0e0e0",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
@@ -66,10 +66,10 @@ const sidebarHeaderStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   padding: "10px 12px",
-  borderBottom: "1px solid #2a2a4a",
+  borderBottom: "1px solid #e0e0e0",
   fontSize: "13px",
   fontWeight: "bold",
-  color: "#d0d0e0",
+  color: "#333333",
 };
 
 const facetListStyle: React.CSSProperties = {
@@ -80,16 +80,16 @@ const facetListStyle: React.CSSProperties = {
 
 const addSectionStyle: React.CSSProperties = {
   padding: "8px 12px",
-  borderTop: "1px solid #2a2a4a",
+  borderTop: "1px solid #e0e0e0",
 };
 
 const addButtonStyle: React.CSSProperties = {
   width: "100%",
   padding: "6px 10px",
-  backgroundColor: "#2a2a4a",
-  border: "1px solid #3a3a5a",
+  backgroundColor: "#f5f5f5",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
-  color: "#a0a0c0",
+  color: "#666666",
   cursor: "pointer",
   fontSize: "12px",
   textAlign: "left",
@@ -103,10 +103,10 @@ const addFormStyle: React.CSSProperties = {
 
 const addInputStyle: React.CSSProperties = {
   padding: "6px 8px",
-  backgroundColor: "#0f0f23",
-  border: "1px solid #3a3a5a",
+  backgroundColor: "#ffffff",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
-  color: "#e0e0e0",
+  color: "#333333",
   fontSize: "12px",
   outline: "none",
 };
@@ -119,10 +119,10 @@ const addFormButtonsStyle: React.CSSProperties = {
 const addConfirmButtonStyle: React.CSSProperties = {
   flex: 1,
   padding: "4px 8px",
-  backgroundColor: "#2a4a2a",
-  border: "1px solid #3a6a3a",
+  backgroundColor: "#dcfce7",
+  border: "1px solid #86efac",
   borderRadius: "4px",
-  color: "#88cc88",
+  color: "#16a34a",
   cursor: "pointer",
   fontSize: "11px",
 };
@@ -130,10 +130,10 @@ const addConfirmButtonStyle: React.CSSProperties = {
 const addCancelButtonStyle: React.CSSProperties = {
   flex: 1,
   padding: "4px 8px",
-  backgroundColor: "#2a2a4a",
-  border: "1px solid #3a3a5a",
+  backgroundColor: "#f5f5f5",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
-  color: "#a0a0c0",
+  color: "#666666",
   cursor: "pointer",
   fontSize: "11px",
 };

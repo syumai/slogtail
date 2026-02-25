@@ -13,10 +13,10 @@ const wrapperStyle: React.CSSProperties = {
 
 const buttonStyle: React.CSSProperties = {
   padding: "8px 12px",
-  backgroundColor: "#0f0f23",
-  border: "1px solid #3a3a5a",
+  backgroundColor: "#ffffff",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
-  color: "#e0e0e0",
+  color: "#333333",
   fontSize: "14px",
   cursor: "pointer",
   whiteSpace: "nowrap",
@@ -33,12 +33,13 @@ const dropdownStyle: React.CSSProperties = {
   top: "100%",
   right: 0,
   marginTop: "4px",
-  backgroundColor: "#1a1a2e",
-  border: "1px solid #3a3a5a",
+  backgroundColor: "#ffffff",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
   zIndex: 100,
   minWidth: "120px",
   overflow: "hidden",
+  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
 };
 
 const dropdownItemStyle: React.CSSProperties = {
@@ -47,7 +48,7 @@ const dropdownItemStyle: React.CSSProperties = {
   padding: "8px 14px",
   backgroundColor: "transparent",
   border: "none",
-  color: "#e0e0e0",
+  color: "#333333",
   fontSize: "14px",
   textAlign: "left",
   cursor: "pointer",
@@ -118,7 +119,7 @@ export function ExportButton() {
             style={dropdownItemStyle}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                "#2a2a4a";
+                "#f0f0f0";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.backgroundColor =
@@ -132,7 +133,7 @@ export function ExportButton() {
             style={dropdownItemStyle}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                "#2a2a4a";
+                "#f0f0f0";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.backgroundColor =

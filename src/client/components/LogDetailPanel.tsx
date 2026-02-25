@@ -16,14 +16,14 @@ const panelStyle = (isOpen: boolean, width: number): React.CSSProperties => ({
   right: 0,
   bottom: 0,
   width: `${width}px`,
-  backgroundColor: "#12122a",
-  borderLeft: "1px solid #2a2a4a",
+  backgroundColor: "#fafafa",
+  borderLeft: "1px solid #e0e0e0",
   transform: isOpen ? "translateX(0)" : `translateX(${width}px)`,
   transition: isOpen ? "none" : "transform 0.25s ease-in-out",
   zIndex: 100,
   display: "flex",
   flexDirection: "column",
-  boxShadow: isOpen ? "-4px 0 20px rgba(0, 0, 0, 0.5)" : "none",
+  boxShadow: isOpen ? "-4px 0 20px rgba(0, 0, 0, 0.1)" : "none",
 });
 
 const resizeHandleStyle = (isResizing: boolean): React.CSSProperties => ({
@@ -33,7 +33,7 @@ const resizeHandleStyle = (isResizing: boolean): React.CSSProperties => ({
   bottom: 0,
   width: "4px",
   cursor: "col-resize",
-  backgroundColor: isResizing ? "#3a3a5a" : "transparent",
+  backgroundColor: isResizing ? "#d0d0d0" : "transparent",
   zIndex: 101,
 });
 
@@ -42,17 +42,17 @@ const panelHeaderStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   padding: "12px 16px",
-  borderBottom: "1px solid #2a2a4a",
+  borderBottom: "1px solid #e0e0e0",
   fontSize: "14px",
   fontWeight: "bold",
-  color: "#e0e0ff",
+  color: "#333333",
   flexShrink: 0,
 };
 
 const closeButtonStyle: React.CSSProperties = {
   background: "none",
   border: "none",
-  color: "#a0a0c0",
+  color: "#666666",
   cursor: "pointer",
   fontSize: "18px",
   padding: "4px 8px",
@@ -76,21 +76,21 @@ const fieldRowStyle: React.CSSProperties = {
 };
 
 const fieldNameStyle: React.CSSProperties = {
-  color: "#6a6a9a",
+  color: "#999999",
   minWidth: "120px",
   flexShrink: 0,
 };
 
 const fieldValueStyle: React.CSSProperties = {
-  color: "#d0d0e0",
+  color: "#333333",
   wordBreak: "break-all",
   flex: 1,
 };
 
 const copyButtonStyle: React.CSSProperties = {
   background: "none",
-  border: "1px solid #3a3a5a",
-  color: "#a0a0c0",
+  border: "1px solid #d0d0d0",
+  color: "#666666",
   cursor: "pointer",
   fontSize: "11px",
   padding: "1px 6px",

@@ -6,11 +6,11 @@ import type { SerializedLogEntry } from "../api";
 // ---------------------------------------------------------------------------
 
 const LEVEL_COLORS: Record<string, string> = {
-  DEBUG: "#888888",
-  INFO: "#4a9eff",
-  WARN: "#ffcc00",
-  ERROR: "#ff4444",
-  FATAL: "#cc44cc",
+  DEBUG: "#6b7280",
+  INFO: "#2563eb",
+  WARN: "#d97706",
+  ERROR: "#dc2626",
+  FATAL: "#9333ea",
 };
 
 // ---------------------------------------------------------------------------
@@ -18,14 +18,14 @@ const LEVEL_COLORS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 const SOURCE_PALETTE = [
-  "#4a9eff",
-  "#44cc88",
-  "#cc8844",
-  "#cc44cc",
-  "#44cccc",
-  "#cccc44",
-  "#ff6688",
-  "#88aaff",
+  "#2563eb",
+  "#059669",
+  "#b45309",
+  "#9333ea",
+  "#0891b2",
+  "#ca8a04",
+  "#e11d48",
+  "#6366f1",
 ];
 
 function sourceColor(source: string): string {
@@ -46,9 +46,9 @@ const rowStyle = (isSelected: boolean): React.CSSProperties => ({
   gap: "8px",
   padding: "6px 16px",
   cursor: "pointer",
-  backgroundColor: isSelected ? "#1e1e3a" : "transparent",
-  borderBottom: "1px solid #1a1a2e",
-  borderLeft: isSelected ? "3px solid #4a9eff" : "3px solid transparent",
+  backgroundColor: isSelected ? "#e8f0fe" : "transparent",
+  borderBottom: "1px solid #f0f0f0",
+  borderLeft: isSelected ? "3px solid #1a73e8" : "3px solid transparent",
   alignItems: "center",
   fontSize: "13px",
   fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
@@ -56,7 +56,7 @@ const rowStyle = (isSelected: boolean): React.CSSProperties => ({
 });
 
 const timestampStyle: React.CSSProperties = {
-  color: "#a0a0c0",
+  color: "#666666",
   fontSize: "12px",
   whiteSpace: "nowrap",
 };
@@ -69,7 +69,7 @@ const levelStyle = (level: string | null): React.CSSProperties => ({
 });
 
 const messageStyle: React.CSSProperties = {
-  color: "#d0d0e0",
+  color: "#333333",
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
@@ -79,7 +79,7 @@ const sourceTagStyle = (color: string): React.CSSProperties => ({
   display: "inline-block",
   padding: "1px 6px",
   borderRadius: "3px",
-  backgroundColor: color + "22",
+  backgroundColor: color + "18",
   color: color,
   fontSize: "11px",
   textAlign: "right",

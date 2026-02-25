@@ -24,8 +24,8 @@ const toolbarStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   padding: "6px 16px",
-  backgroundColor: "#16162a",
-  borderBottom: "1px solid #2a2a4a",
+  backgroundColor: "#fafafa",
+  borderBottom: "1px solid #e0e0e0",
   fontSize: "13px",
 };
 
@@ -37,20 +37,20 @@ const toolbarLeftStyle: React.CSSProperties = {
 
 const sortButtonStyle: React.CSSProperties = {
   padding: "4px 10px",
-  backgroundColor: "#2a2a4a",
-  border: "1px solid #3a3a5a",
+  backgroundColor: "#f5f5f5",
+  border: "1px solid #d0d0d0",
   borderRadius: "4px",
-  color: "#c0c0e0",
+  color: "#333333",
   cursor: "pointer",
   fontSize: "12px",
 };
 
 const liveTailButtonStyle = (active: boolean): React.CSSProperties => ({
   padding: "4px 12px",
-  backgroundColor: active ? "#1a4a1a" : "#2a2a4a",
-  border: `1px solid ${active ? "#2a7a2a" : "#3a3a5a"}`,
+  backgroundColor: active ? "#dcfce7" : "#f5f5f5",
+  border: `1px solid ${active ? "#22c55e" : "#d0d0d0"}`,
   borderRadius: "4px",
-  color: active ? "#44cc44" : "#c0c0e0",
+  color: active ? "#16a34a" : "#333333",
   cursor: "pointer",
   fontSize: "12px",
   fontWeight: active ? "bold" : "normal",
@@ -61,14 +61,14 @@ const connectedDotStyle = (connected: boolean): React.CSSProperties => ({
   width: "8px",
   height: "8px",
   borderRadius: "50%",
-  backgroundColor: connected ? "#44cc44" : "#666",
+  backgroundColor: connected ? "#22c55e" : "#999",
   marginRight: "4px",
 });
 
 const listStyle: React.CSSProperties = {
   flex: 1,
   overflow: "auto",
-  backgroundColor: "#0f0f23",
+  backgroundColor: "#ffffff",
 };
 
 const headerRowStyle: React.CSSProperties = {
@@ -76,11 +76,11 @@ const headerRowStyle: React.CSSProperties = {
   gridTemplateColumns: "160px 60px 1fr 100px",
   gap: "8px",
   padding: "6px 16px",
-  backgroundColor: "#1a1a2e",
-  borderBottom: "1px solid #2a2a4a",
+  backgroundColor: "#f5f5f5",
+  borderBottom: "1px solid #e0e0e0",
   fontSize: "12px",
   fontWeight: "bold",
-  color: "#6a6a9a",
+  color: "#999999",
   position: "sticky",
   top: 0,
   zIndex: 1,
@@ -91,7 +91,7 @@ const emptyStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "48px 16px",
-  color: "#555",
+  color: "#999999",
   fontSize: "14px",
 };
 
@@ -100,7 +100,7 @@ const errorStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "16px",
-  color: "#ff4444",
+  color: "#dc2626",
   fontSize: "14px",
 };
 
@@ -109,7 +109,7 @@ const loadingStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: "16px",
-  color: "#a0a0c0",
+  color: "#666666",
   fontSize: "14px",
 };
 
@@ -344,12 +344,12 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
             {filters.order === "desc" ? "\u2193" : "\u2191"}
           </button>
           {!filters.isLiveTail && (
-            <span style={{ color: "#6a6a9a" }}>
+            <span style={{ color: "#999999" }}>
               {total.toLocaleString()} results
             </span>
           )}
           {filters.isLiveTail && (
-            <span style={{ color: "#6a6a9a" }}>
+            <span style={{ color: "#999999" }}>
               {isConnected ? `${liveLogs.length} live logs` : `${total.toLocaleString()} results (polling)`}
             </span>
           )}
@@ -358,7 +358,7 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
           {filters.isLiveTail && (
             <span>
               <span style={connectedDotStyle(isConnected)} />
-              <span style={{ color: "#6a6a9a", fontSize: "12px" }}>
+              <span style={{ color: "#999999", fontSize: "12px" }}>
                 {isConnected ? "Connected" : "Polling"}
               </span>
             </span>
