@@ -46,6 +46,13 @@ interface DragState {
   currentX: number;
 }
 
+interface RectLike {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -55,6 +62,16 @@ export function bucketIndexFromX(x: number, width: number, bucketCount: number):
   const barWidth = width / bucketCount;
   const clampedX = clamp(x, 0, width - 1);
   return Math.floor(clampedX / barWidth);
+}
+
+export function tooltipPositionFromClientPoint(
+  clientX: number,
+  clientY: number,
+  rect: RectLike,
+): { x: number; y: number } {
+  const x = clamp(clientX - rect.left, 8, Math.max(8, rect.width - 8));
+  const y = clamp(clientY - rect.top, 8, Math.max(8, rect.height - 8));
+  return { x, y };
 }
 
 function formatBucketTimestamp(timestamp: string): string {
@@ -201,10 +218,17 @@ export function HistogramChart({
                 height={height}
                 fill="transparent"
                 onMouseMove={(event) => {
+                  const rect = svgRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  const position = tooltipPositionFromClientPoint(
+                    event.clientX,
+                    event.clientY,
+                    rect,
+                  );
                   setHover({
                     index,
-                    x: event.clientX,
-                    y: event.clientY,
+                    x: position.x,
+                    y: position.y,
                   });
                 }}
               />
