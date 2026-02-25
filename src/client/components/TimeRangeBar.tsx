@@ -27,6 +27,7 @@ const PRESET_MS: Partial<Record<TimePreset, number>> = {
   "1d": 24 * 60 * 60 * 1000,
 };
 
+const HISTOGRAM_BASE_BUCKETS = 120;
 const HISTOGRAM_MIN_BUCKETS = 30;
 const HISTOGRAM_MAX_BUCKETS = 360;
 
@@ -142,23 +143,11 @@ export function resolveHistogramBucketCount(
   const end = filters.endTime ?? new Date();
   const start = filters.startTime ?? new Date(end.getTime() - 60 * 60 * 1000);
   const spanMs = Math.max(60 * 1000, Math.abs(end.getTime() - start.getTime()));
-
-  let targetBucketMs: number;
-  if (spanMs <= 30 * 60 * 1000) {
-    targetBucketMs = 10 * 1000;
-  } else if (spanMs <= 2 * 60 * 60 * 1000) {
-    targetBucketMs = 20 * 1000;
-  } else if (spanMs <= 12 * 60 * 60 * 1000) {
-    targetBucketMs = 60 * 1000;
-  } else if (spanMs <= 24 * 60 * 60 * 1000) {
-    targetBucketMs = 2 * 60 * 1000;
-  } else if (spanMs <= 7 * 24 * 60 * 60 * 1000) {
-    targetBucketMs = 10 * 60 * 1000;
-  } else {
-    targetBucketMs = 30 * 60 * 1000;
-  }
-
-  const estimated = Math.round(spanMs / targetBucketMs);
+  const maxBucketsAtOneSecond = Math.max(
+    HISTOGRAM_MIN_BUCKETS,
+    Math.floor(spanMs / 1000),
+  );
+  const estimated = Math.min(HISTOGRAM_BASE_BUCKETS, maxBucketsAtOneSecond);
   return Math.min(HISTOGRAM_MAX_BUCKETS, Math.max(HISTOGRAM_MIN_BUCKETS, estimated));
 }
 
