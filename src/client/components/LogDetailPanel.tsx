@@ -58,6 +58,7 @@ const fieldRowStyle: React.CSSProperties = {
   display: "flex",
   gap: "8px",
   padding: "4px 0",
+  alignItems: "flex-start",
 };
 
 const fieldNameStyle: React.CSSProperties = {
@@ -69,6 +70,25 @@ const fieldNameStyle: React.CSSProperties = {
 const fieldValueStyle: React.CSSProperties = {
   color: "#d0d0e0",
   wordBreak: "break-all",
+  flex: 1,
+};
+
+const copyButtonStyle: React.CSSProperties = {
+  background: "none",
+  border: "1px solid #3a3a5a",
+  color: "#a0a0c0",
+  cursor: "pointer",
+  fontSize: "11px",
+  padding: "1px 6px",
+  borderRadius: "3px",
+  flexShrink: 0,
+  lineHeight: 1.4,
+};
+
+const headerButtonsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "8px",
+  alignItems: "center",
 };
 
 // ---------------------------------------------------------------------------
@@ -143,6 +163,42 @@ export function flattenObject(
 }
 
 // ---------------------------------------------------------------------------
+// valueColorStyle - type-based color differentiation (Req 6.6)
+// ---------------------------------------------------------------------------
+
+export function valueColorStyle(value: unknown): React.CSSProperties {
+  if (typeof value === "number") {
+    return { color: "#1a73e8" }; // blue for numbers
+  }
+  if (typeof value === "boolean") {
+    return { color: "#e67e22" }; // orange for booleans
+  }
+  if (value === null) {
+    return { color: "#999999" }; // grey for null
+  }
+  // string, undefined, object, array -> default (no color override)
+  return {};
+}
+
+// ---------------------------------------------------------------------------
+// copyToClipboard - clipboard helper (Req 6.4, 6.5)
+// ---------------------------------------------------------------------------
+
+export async function copyToClipboard(text: string): Promise<boolean> {
+  if (!navigator.clipboard) {
+    console.warn("Clipboard API is not available");
+    return false;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    console.warn("Failed to copy to clipboard:", err);
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -179,19 +235,43 @@ export const LogDetailPanel = memo(function LogDetailPanel({
         <>
           <div style={panelHeaderStyle}>
             <span>Log Detail</span>
-            <button
-              style={closeButtonStyle}
-              onClick={onClose}
-              aria-label="Close"
-            >
-              ✕
-            </button>
+            <div style={headerButtonsStyle}>
+              <button
+                style={copyButtonStyle}
+                onClick={() =>
+                  copyToClipboard(
+                    JSON.stringify(displayLog._raw, null, 2),
+                  )
+                }
+                aria-label="Copy JSON"
+              >
+                Copy JSON
+              </button>
+              <button
+                style={closeButtonStyle}
+                onClick={onClose}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           <div style={panelBodyStyle}>
             {flattenObject(displayLog._raw).map(({ key, value }) => (
               <div style={fieldRowStyle} key={key}>
                 <span style={fieldNameStyle}>{key}</span>
-                <span style={fieldValueStyle}>{formatValue(value)}</span>
+                <span
+                  style={{ ...fieldValueStyle, ...valueColorStyle(value) }}
+                >
+                  {formatValue(value)}
+                </span>
+                <button
+                  style={copyButtonStyle}
+                  onClick={() => copyToClipboard(formatValue(value))}
+                  aria-label={`Copy ${key}`}
+                >
+                  Copy
+                </button>
               </div>
             ))}
           </div>

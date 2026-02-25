@@ -1,5 +1,10 @@
-import { describe, it, expect } from "vitest";
-import { flattenObject, EXCLUDED_KEYS } from "./LogDetailPanel";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  flattenObject,
+  EXCLUDED_KEYS,
+  valueColorStyle,
+  copyToClipboard,
+} from "./LogDetailPanel";
 
 // ---------------------------------------------------------------------------
 // EXCLUDED_KEYS
@@ -237,5 +242,152 @@ describe("flattenObject", () => {
     });
     // An empty nested object should produce no entries for that key
     expect(result).toEqual([{ key: "message", value: "hello" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// valueColorStyle - type-based color differentiation
+// ---------------------------------------------------------------------------
+
+describe("valueColorStyle", () => {
+  it("returns default text color for string values", () => {
+    const style = valueColorStyle("hello");
+    // String values should use default text color (no special color override,
+    // or the same as default text color)
+    expect(style.color).toBeUndefined();
+  });
+
+  it("returns blue-ish color for number values", () => {
+    const style = valueColorStyle(42);
+    expect(style.color).toBeDefined();
+    expect(typeof style.color).toBe("string");
+    // Should be a blue-ish color
+    expect(style.color).toMatch(/blue|#[0-9a-fA-F]+/i);
+  });
+
+  it("returns blue-ish color for zero", () => {
+    const style = valueColorStyle(0);
+    expect(style.color).toBeDefined();
+  });
+
+  it("returns blue-ish color for negative numbers", () => {
+    const style = valueColorStyle(-3.14);
+    expect(style.color).toBeDefined();
+  });
+
+  it("returns orange-ish color for boolean true", () => {
+    const style = valueColorStyle(true);
+    expect(style.color).toBeDefined();
+    expect(typeof style.color).toBe("string");
+  });
+
+  it("returns orange-ish color for boolean false", () => {
+    const style = valueColorStyle(false);
+    expect(style.color).toBeDefined();
+    // Should be same color as boolean true
+    expect(style.color).toBe(valueColorStyle(true).color);
+  });
+
+  it("returns grey-ish color for null", () => {
+    const style = valueColorStyle(null);
+    expect(style.color).toBeDefined();
+    expect(typeof style.color).toBe("string");
+  });
+
+  it("returns default style for undefined", () => {
+    const style = valueColorStyle(undefined);
+    // undefined is not string/number/boolean/null, treat like string (default)
+    expect(style.color).toBeUndefined();
+  });
+
+  it("returns default style for object values", () => {
+    const style = valueColorStyle({ foo: "bar" });
+    expect(style.color).toBeUndefined();
+  });
+
+  it("returns default style for array values", () => {
+    const style = valueColorStyle([1, 2, 3]);
+    expect(style.color).toBeUndefined();
+  });
+
+  it("returns a CSSProperties-compatible object", () => {
+    // All return values should be valid React.CSSProperties
+    for (const val of ["text", 42, true, null, undefined]) {
+      const style = valueColorStyle(val);
+      expect(typeof style).toBe("object");
+      expect(style).not.toBeNull();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// copyToClipboard - clipboard helper
+// ---------------------------------------------------------------------------
+
+describe("copyToClipboard", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns true when clipboard write succeeds", async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: { writeText: writeTextMock },
+    });
+
+    const result = await copyToClipboard("hello");
+    expect(result).toBe(true);
+    expect(writeTextMock).toHaveBeenCalledWith("hello");
+  });
+
+  it("returns false when clipboard write throws", async () => {
+    const writeTextMock = vi
+      .fn()
+      .mockRejectedValue(new Error("Clipboard error"));
+    Object.assign(navigator, {
+      clipboard: { writeText: writeTextMock },
+    });
+    const consoleSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+
+    const result = await copyToClipboard("hello");
+    expect(result).toBe(false);
+    expect(consoleSpy).toHaveBeenCalled();
+  });
+
+  it("returns false and warns when clipboard API is unavailable", async () => {
+    // Temporarily remove clipboard
+    const original = navigator.clipboard;
+    Object.defineProperty(navigator, "clipboard", {
+      value: undefined,
+      writable: true,
+      configurable: true,
+    });
+    const consoleSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+
+    const result = await copyToClipboard("hello");
+    expect(result).toBe(false);
+    expect(consoleSpy).toHaveBeenCalled();
+
+    // Restore
+    Object.defineProperty(navigator, "clipboard", {
+      value: original,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it("passes the exact text to clipboard.writeText", async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: { writeText: writeTextMock },
+    });
+
+    const jsonText = '{"key":"value","num":42}';
+    await copyToClipboard(jsonText);
+    expect(writeTextMock).toHaveBeenCalledWith(jsonText);
   });
 });
