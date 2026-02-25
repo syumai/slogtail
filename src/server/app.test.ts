@@ -642,6 +642,54 @@ describe("GET /api/facets", () => {
   });
 });
 
+describe("GET /api/histogram", () => {
+  let histogramDb: LogDatabase;
+  let histogramApp: ReturnType<typeof createApiApp>;
+
+  beforeAll(async () => {
+    histogramDb = new LogDatabase();
+    await histogramDb.initialize(":memory:");
+    histogramApp = createApiApp(histogramDb);
+
+    const logs = [
+      makeLog({ _id: 1n, level: "info", service: "api", timestamp: new Date("2026-01-15T10:00:10Z") }),
+      makeLog({ _id: 2n, level: "ERROR", service: "api", timestamp: new Date("2026-01-15T10:00:40Z") }),
+      makeLog({ _id: 3n, level: "WARN", service: "worker", timestamp: new Date("2026-01-15T10:01:05Z") }),
+    ];
+    await histogramDb.insertBatch(logs);
+  });
+
+  afterAll(async () => {
+    if (histogramDb) await histogramDb.close();
+  });
+
+  it("returns histogram buckets and interval", async () => {
+    const res = await histogramApp.request(
+      "/api/histogram?buckets=3&startTime=2026-01-15T10:00:00.000Z&endTime=2026-01-15T10:03:00.000Z",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.interval).toBe("1 minute");
+    expect(Array.isArray(body.buckets)).toBe(true);
+    expect(body.buckets.length).toBe(3);
+  });
+
+  it("applies filters to histogram query", async () => {
+    const res = await histogramApp.request(
+      "/api/histogram?buckets=3&service=worker&startTime=2026-01-15T10:00:00.000Z&endTime=2026-01-15T10:03:00.000Z",
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const bucket = body.buckets.find((b: { timestamp: string }) => b.timestamp === "2026-01-15T10:01:00.000Z");
+    expect(bucket?.counts.WARN).toBe(1);
+  });
+
+  it("returns 400 for invalid buckets value", async () => {
+    const res = await histogramApp.request("/api/histogram?buckets=1000");
+    expect(res.status).toBe(400);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // POST /api/ingest
 // ---------------------------------------------------------------------------

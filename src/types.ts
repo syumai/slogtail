@@ -89,6 +89,18 @@ export interface FacetDistribution {
   values: Array<{ value: string; count: number }>;
 }
 
+// --- Histogram ---
+
+export interface HistogramBucket {
+  timestamp: string;
+  counts: Record<string, number>;
+}
+
+export interface HistogramResponse {
+  buckets: HistogramBucket[];
+  interval: string;
+}
+
 // --- Facet Definition ---
 
 export interface FacetDefinition {

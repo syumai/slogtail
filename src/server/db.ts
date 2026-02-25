@@ -6,6 +6,7 @@ import type {
   LogQueryParams,
   LogStats,
   FacetDistribution,
+  HistogramResponse,
   SchemaColumn,
 } from "../types";
 
@@ -310,6 +311,73 @@ export class LogDatabase {
   }
 
   // -------------------------------------------------------------------------
+  // Histogram
+  // -------------------------------------------------------------------------
+
+  async getHistogram(
+    params: Partial<LogQueryParams> & {
+      buckets?: number;
+      startTime?: Date;
+      endTime?: Date;
+    },
+  ): Promise<HistogramResponse> {
+    const conn = this.getConnection();
+
+    const buckets = Math.min(60, Math.max(1, Math.floor(params.buckets ?? 30)));
+    const endTime = params.endTime ?? new Date();
+    const startTime = params.startTime ?? new Date(endTime.getTime() - 60 * 60 * 1000);
+    const rangeStartMs = Math.min(startTime.getTime(), endTime.getTime());
+    const rangeEndMs = Math.max(startTime.getTime(), endTime.getTime());
+    const spanMs = Math.max(1000, rangeEndMs - rangeStartMs);
+    const intervalMs = Math.max(1000, Math.floor(spanMs / buckets));
+    const interval = intervalMsToIntervalString(intervalMs);
+
+    const conditions = buildFilterConditions({
+      ...params,
+      startTime: new Date(rangeStartMs),
+      endTime: new Date(rangeEndMs),
+    });
+    conditions.push("timestamp IS NOT NULL");
+    conditions.push("level IS NOT NULL");
+    const whereClause = `WHERE ${conditions.join(" AND ")}`;
+
+    const reader = await conn.runAndReadAll(
+      `SELECT
+         time_bucket(INTERVAL '${interval}', timestamp) AS bucket,
+         UPPER(level) AS lvl,
+         COUNT(*) AS cnt
+       FROM logs
+       ${whereClause}
+       GROUP BY bucket, lvl
+       ORDER BY bucket ASC`,
+    );
+
+    const countsByBucket = new Map<string, Record<string, number>>();
+    for (const row of reader.getRowsJS()) {
+      const bucketIso = jsToDate(row[0]).toISOString();
+      const level = String(row[1]);
+      const count = Number(row[2]);
+      const current = countsByBucket.get(bucketIso) ?? {};
+      current[level] = count;
+      countsByBucket.set(bucketIso, current);
+    }
+
+    const alignedStart = Math.floor(rangeStartMs / intervalMs) * intervalMs;
+    const histogramBuckets = Array.from({ length: buckets }, (_, i) => {
+      const timestamp = new Date(alignedStart + i * intervalMs).toISOString();
+      return {
+        timestamp,
+        counts: countsByBucket.get(timestamp) ?? {},
+      };
+    });
+
+    return {
+      buckets: histogramBuckets,
+      interval,
+    };
+  }
+
+  // -------------------------------------------------------------------------
   // Custom SQL Execution
   // -------------------------------------------------------------------------
 
@@ -433,6 +501,28 @@ function csvEscape(value: unknown): string {
     return '"' + str.replace(/"/g, '""') + '"';
   }
   return str;
+}
+
+function intervalMsToIntervalString(intervalMs: number): string {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const hourMs = 60 * 60 * 1000;
+  const minuteMs = 60 * 1000;
+  const secondMs = 1000;
+
+  if (intervalMs % dayMs === 0) {
+    const days = Math.max(1, Math.floor(intervalMs / dayMs));
+    return `${days} ${days === 1 ? "day" : "days"}`;
+  }
+  if (intervalMs % hourMs === 0) {
+    const hours = Math.max(1, Math.floor(intervalMs / hourMs));
+    return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
+  if (intervalMs % minuteMs === 0) {
+    const minutes = Math.max(1, Math.floor(intervalMs / minuteMs));
+    return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  }
+  const seconds = Math.max(1, Math.floor(intervalMs / secondMs));
+  return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
 }
 
 // ---------------------------------------------------------------------------

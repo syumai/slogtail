@@ -96,6 +96,18 @@ const facetQuerySchema = z.object({
   jsonFilters: z.string().optional(),
 });
 
+const histogramQuerySchema = z.object({
+  buckets: z.coerce.number().int().min(1).max(60).default(30),
+  startTime: z.coerce.date().optional(),
+  endTime: z.coerce.date().optional(),
+  level: z.string().optional(),
+  service: z.string().optional(),
+  host: z.string().optional(),
+  source: z.string().optional(),
+  search: z.string().optional(),
+  jsonFilters: z.string().optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Validation error hook (returns 400 with ErrorResponse format)
 // ---------------------------------------------------------------------------
@@ -228,6 +240,35 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
           logs: result.logs.map(serializeLogEntry),
           total: result.total,
         });
+      } catch (err) {
+        return c.json(
+          {
+            error: {
+              code: "QUERY_ERROR" as const,
+              message: err instanceof Error ? err.message : "Unknown error",
+            },
+          },
+          500,
+        );
+      }
+    })
+
+    // ----- GET /api/histogram -----
+    .get("/histogram", zValidator("query", histogramQuerySchema, validationHook), async (c) => {
+      try {
+        const params = c.req.valid("query");
+        const result = await db.getHistogram({
+          buckets: params.buckets,
+          startTime: params.startTime,
+          endTime: params.endTime,
+          level: splitLevels(params.level),
+          service: splitStrings(params.service),
+          host: splitStrings(params.host),
+          source: splitStrings(params.source),
+          search: params.search,
+          jsonFilters: parseJsonFilters(params.jsonFilters),
+        });
+        return c.json(result);
       } catch (err) {
         return c.json(
           {

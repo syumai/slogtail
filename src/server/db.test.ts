@@ -527,6 +527,75 @@ describe("LogDatabase - getFacetDistribution", () => {
   });
 });
 
+describe("LogDatabase - getHistogram", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+    await db.insertBatch([
+      makeLog({
+        _id: 1n,
+        level: "info",
+        service: "api",
+        timestamp: new Date("2026-01-15T10:00:10Z"),
+      }),
+      makeLog({
+        _id: 2n,
+        level: "ERROR",
+        service: "api",
+        timestamp: new Date("2026-01-15T10:00:40Z"),
+      }),
+      makeLog({
+        _id: 3n,
+        level: "warn",
+        service: "worker",
+        timestamp: new Date("2026-01-15T10:01:05Z"),
+      }),
+    ]);
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("returns bucketed histogram rows with normalized levels", async () => {
+    const histogram = await db.getHistogram({
+      buckets: 3,
+      startTime: new Date("2026-01-15T10:00:00Z"),
+      endTime: new Date("2026-01-15T10:03:00Z"),
+    });
+
+    expect(histogram.interval).toBe("1 minute");
+    expect(histogram.buckets).toHaveLength(3);
+
+    const first = histogram.buckets.find(
+      (bucket) => bucket.timestamp === "2026-01-15T10:00:00.000Z",
+    );
+    expect(first?.counts.INFO).toBe(1);
+    expect(first?.counts.ERROR).toBe(1);
+  });
+
+  it("applies filters to histogram query", async () => {
+    const histogram = await db.getHistogram({
+      buckets: 3,
+      service: ["worker"],
+      startTime: new Date("2026-01-15T10:00:00Z"),
+      endTime: new Date("2026-01-15T10:03:00Z"),
+    });
+
+    const second = histogram.buckets.find(
+      (bucket) => bucket.timestamp === "2026-01-15T10:01:00.000Z",
+    );
+    expect(second?.counts.WARN).toBe(1);
+
+    const first = histogram.buckets.find(
+      (bucket) => bucket.timestamp === "2026-01-15T10:00:00.000Z",
+    );
+    expect(first?.counts.INFO ?? 0).toBe(0);
+  });
+});
+
 describe("LogDatabase - executeQuery", () => {
   let db: LogDatabase;
 
