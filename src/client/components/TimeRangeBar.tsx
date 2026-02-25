@@ -147,7 +147,9 @@ function formatAppliedRange(filters: FilterState): string {
 
 export function TimeRangeBar() {
   const [filters, actions] = useFilters();
-  const activePreset = useMemo(() => inferTimePreset(filters), [filters]);
+  const [customPresetLocked, setCustomPresetLocked] = useState(false);
+  const inferredPreset = useMemo(() => inferTimePreset(filters), [filters]);
+  const activePreset = customPresetLocked ? "custom" : inferredPreset;
   const [fromInput, setFromInput] = useState(formatDatetimeLocal(filters.startTime));
   const [toInput, setToInput] = useState(formatDatetimeLocal(filters.endTime));
 
@@ -155,6 +157,12 @@ export function TimeRangeBar() {
     setFromInput(formatDatetimeLocal(filters.startTime));
     setToInput(formatDatetimeLocal(filters.endTime));
   }, [filters.startTime, filters.endTime]);
+
+  useEffect(() => {
+    if (filters.isLiveTail && !filters.startTime && !filters.endTime) {
+      setCustomPresetLocked(false);
+    }
+  }, [filters.isLiveTail, filters.startTime, filters.endTime]);
 
   const histogramQuery = useMemo(
     () => ({
@@ -194,6 +202,7 @@ export function TimeRangeBar() {
 
   const applyPreset = useCallback(
     (preset: TimePreset) => {
+      setCustomPresetLocked(preset === "custom");
       if (preset === "live") {
         actions.updateFilters({
           isLiveTail: true,
@@ -231,6 +240,7 @@ export function TimeRangeBar() {
     const end = parseDatetimeLocal(toInput);
     if (!start || !end) return;
     if (start.getTime() > end.getTime()) return;
+    setCustomPresetLocked(true);
     actions.updateFilters({
       isLiveTail: false,
       startTime: start,
@@ -292,6 +302,7 @@ export function TimeRangeBar() {
           buckets={data?.buckets ?? []}
           selectedRange={selectedRange}
           onTimeRangeSelect={(start, end) => {
+            setCustomPresetLocked(true);
             actions.updateFilters({
               isLiveTail: false,
               startTime: start,
