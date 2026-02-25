@@ -27,6 +27,9 @@ const PRESET_MS: Partial<Record<TimePreset, number>> = {
   "1d": 24 * 60 * 60 * 1000,
 };
 
+const HISTOGRAM_MIN_BUCKETS = 30;
+const HISTOGRAM_MAX_BUCKETS = 360;
+
 const containerStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -133,6 +136,32 @@ export function inferTimePreset(filters: FilterState): TimePreset {
   return "custom";
 }
 
+export function resolveHistogramBucketCount(
+  filters: Pick<FilterState, "startTime" | "endTime">,
+): number {
+  const end = filters.endTime ?? new Date();
+  const start = filters.startTime ?? new Date(end.getTime() - 60 * 60 * 1000);
+  const spanMs = Math.max(60 * 1000, Math.abs(end.getTime() - start.getTime()));
+
+  let targetBucketMs: number;
+  if (spanMs <= 30 * 60 * 1000) {
+    targetBucketMs = 10 * 1000;
+  } else if (spanMs <= 2 * 60 * 60 * 1000) {
+    targetBucketMs = 20 * 1000;
+  } else if (spanMs <= 12 * 60 * 60 * 1000) {
+    targetBucketMs = 60 * 1000;
+  } else if (spanMs <= 24 * 60 * 60 * 1000) {
+    targetBucketMs = 2 * 60 * 1000;
+  } else if (spanMs <= 7 * 24 * 60 * 60 * 1000) {
+    targetBucketMs = 10 * 60 * 1000;
+  } else {
+    targetBucketMs = 30 * 60 * 1000;
+  }
+
+  const estimated = Math.round(spanMs / targetBucketMs);
+  return Math.min(HISTOGRAM_MAX_BUCKETS, Math.max(HISTOGRAM_MIN_BUCKETS, estimated));
+}
+
 function formatAppliedRange(filters: FilterState): string {
   if (filters.isLiveTail && !filters.startTime && !filters.endTime) {
     return "Live tail (latest logs)";
@@ -164,9 +193,18 @@ export function TimeRangeBar() {
     }
   }, [filters.isLiveTail, filters.startTime, filters.endTime]);
 
+  const histogramBucketCount = useMemo(
+    () =>
+      resolveHistogramBucketCount({
+        startTime: filters.isLiveTail ? undefined : filters.startTime,
+        endTime: filters.isLiveTail ? undefined : filters.endTime,
+      }),
+    [filters.isLiveTail, filters.startTime, filters.endTime],
+  );
+
   const histogramQuery = useMemo(
     () => ({
-      buckets: 30,
+      buckets: histogramBucketCount,
       search: filters.search,
       level: filters.level.length > 0 ? filters.level : undefined,
       service: filters.service.length > 0 ? filters.service : undefined,
@@ -186,6 +224,7 @@ export function TimeRangeBar() {
       filters.endTime,
       filters.isLiveTail,
       filters.jsonFilters,
+      histogramBucketCount,
     ],
   );
 

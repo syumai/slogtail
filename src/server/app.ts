@@ -97,7 +97,7 @@ const facetQuerySchema = z.object({
 });
 
 const histogramQuerySchema = z.object({
-  buckets: z.coerce.number().int().min(1).max(60).default(30),
+  buckets: z.coerce.number().int().min(1).max(360).default(30),
   startTime: z.coerce.date().optional(),
   endTime: z.coerce.date().optional(),
   level: z.string().optional(),

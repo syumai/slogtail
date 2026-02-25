@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatDatetimeLocal, inferTimePreset, parseDatetimeLocal } from "./TimeRangeBar";
+import {
+  formatDatetimeLocal,
+  inferTimePreset,
+  parseDatetimeLocal,
+  resolveHistogramBucketCount,
+} from "./TimeRangeBar";
 import type { FilterState } from "../store";
 
 function makeFilterState(overrides: Partial<FilterState> = {}): FilterState {
@@ -55,5 +60,19 @@ describe("datetime local helpers", () => {
 
   it("returns undefined for invalid datetime strings", () => {
     expect(parseDatetimeLocal("invalid")).toBeUndefined();
+  });
+});
+
+describe("resolveHistogramBucketCount", () => {
+  it("uses finer buckets for short ranges", () => {
+    const start = new Date("2026-01-01T00:00:00Z");
+    const end = new Date("2026-01-01T00:15:00Z");
+    expect(resolveHistogramBucketCount({ startTime: start, endTime: end })).toBe(90);
+  });
+
+  it("uses coarser buckets for longer ranges", () => {
+    const start = new Date("2026-01-01T00:00:00Z");
+    const end = new Date("2026-01-02T00:00:00Z");
+    expect(resolveHistogramBucketCount({ startTime: start, endTime: end })).toBe(360);
   });
 });

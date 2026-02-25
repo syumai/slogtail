@@ -323,7 +323,7 @@ export class LogDatabase {
   ): Promise<HistogramResponse> {
     const conn = this.getConnection();
 
-    const buckets = Math.min(60, Math.max(1, Math.floor(params.buckets ?? 30)));
+    const buckets = Math.min(360, Math.max(1, Math.floor(params.buckets ?? 30)));
     const endTime = params.endTime ?? new Date();
     const startTime = params.startTime ?? new Date(endTime.getTime() - 60 * 60 * 1000);
     const rangeStartMs = Math.min(startTime.getTime(), endTime.getTime());
