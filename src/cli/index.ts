@@ -7,6 +7,7 @@ import { createApiApp } from "../server/app";
 import { LogDatabase } from "../server/db";
 import { Ingester } from "../server/ingester";
 import { WSHandler } from "../server/ws";
+import { runRelay } from "./relay";
 import type { CLIOptions } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -58,8 +59,13 @@ export function parseCLIArgs(args: string[]): ParsedCLIOptions {
 
 const USAGE = `
 Usage: <command> | lduck [options]
+       <command> | lduck relay [options]
 
-Options:
+Commands:
+  (default)    Start the lduck server (Web UI + API)
+  relay        Relay stdin logs to a running lduck server via HTTP
+
+Server Options:
   -p, --port <port>       Server port (default: 8080)
   -m, --max-rows <n>      Maximum rows to keep (default: 100000)
       --batch-size <n>    Batch INSERT size (default: 5000)
@@ -71,6 +77,8 @@ Examples:
   kubectl logs -f deploy/api | lduck --port 8080
   cat app.log | lduck --db ./logs.duckdb
   docker logs -f myapp | lduck --no-ui -p 9090
+  kubectl logs -f deploy/api | lduck relay --service api
+  docker logs -f myapp | lduck relay -s myapp -u http://localhost:8080
 `.trimStart();
 
 // ---------------------------------------------------------------------------
@@ -160,8 +168,17 @@ async function main(): Promise<void> {
 
 // Only run main when this module is executed directly (not during tests)
 if (!process.env.VITEST) {
-  main().catch((err) => {
-    console.error("Failed to start lduck:", err);
-    process.exit(1);
-  });
+  const args = process.argv.slice(2);
+
+  if (args[0] === "relay") {
+    runRelay(args.slice(1)).catch((err) => {
+      console.error("Failed to run lduck relay:", err);
+      process.exit(1);
+    });
+  } else {
+    main().catch((err) => {
+      console.error("Failed to start lduck:", err);
+      process.exit(1);
+    });
+  }
 }
