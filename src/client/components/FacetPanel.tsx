@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
 import { useFacets } from "../api";
 import type { QueryFilters } from "../api";
 import type { FacetDefinition } from "../../types";
@@ -102,7 +102,7 @@ const loadingStyle: React.CSSProperties = {
 // Component
 // ---------------------------------------------------------------------------
 
-export function FacetPanel({
+export const FacetPanel = memo(function FacetPanel({
   definition,
   filters,
   selectedValue,
@@ -151,7 +151,7 @@ export function FacetPanel({
     // Build sorted array: by count desc, then alphabetically
     return [...seenValuesRef.current.entries()]
       .map(([value, count]) => ({ value, count }))
-      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+      .sort((a, b) => a.value.localeCompare(b.value));
   }, [values]);
 
   const handleValueClick = useCallback(
@@ -230,4 +230,4 @@ export function FacetPanel({
       )}
     </div>
   );
-}
+});

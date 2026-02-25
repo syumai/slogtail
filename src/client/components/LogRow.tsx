@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { memo, useState, useCallback } from "react";
 import type { SerializedLogEntry } from "../api";
 
 // ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ interface LogRowProps {
   log: SerializedLogEntry;
 }
 
-export function LogRow({ log }: LogRowProps) {
+export const LogRow = memo(function LogRow({ log }: LogRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const toggle = useCallback(() => {
@@ -216,4 +216,4 @@ export function LogRow({ log }: LogRowProps) {
       )}
     </>
   );
-}
+});

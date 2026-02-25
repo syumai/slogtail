@@ -215,12 +215,16 @@ export function useFacets(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetchKey, setFetchKey] = useState(0);
+  const hasLoadedRef = useRef(false);
 
   const refetch = useCallback(() => setFetchKey((k) => k + 1), []);
 
   useEffect(() => {
     let cancelled = false;
-    setIsLoading(true);
+    // Only show loading indicator on initial fetch to avoid flickering during periodic refetches
+    if (!hasLoadedRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     const query = {
@@ -247,6 +251,7 @@ export function useFacets(
         if (cancelled) return;
         const body = data as { field: string; values: FacetValue[] };
         setValues(body.values);
+        hasLoadedRef.current = true;
       })
       .catch((err) => {
         if (cancelled) return;
@@ -321,11 +326,13 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Store latest callbacks in refs to avoid re-connecting on callback changes
+  // Store latest callbacks and filter in refs to avoid re-connecting on changes
   const onLogsRef = useRef(onLogs);
   onLogsRef.current = onLogs;
   const onStatsRef = useRef(onStats);
   onStatsRef.current = onStats;
+  const filterRef = useRef(filter);
+  filterRef.current = filter;
 
   const cleanup = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -350,8 +357,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
     ws.onopen = () => {
       setIsConnected(true);
       // Send initial filter if provided
-      if (filter) {
-        ws.send(JSON.stringify({ type: "filter", filter }));
+      if (filterRef.current) {
+        ws.send(JSON.stringify({ type: "filter", filter: filterRef.current }));
       }
     };
 
@@ -379,7 +386,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
     ws.onerror = () => {
       // onclose will fire after onerror, triggering reconnect
     };
-  }, [cleanup, enabled, filter]);
+  }, [cleanup, enabled]);
 
   // Connect/disconnect based on enabled flag
   useEffect(() => {

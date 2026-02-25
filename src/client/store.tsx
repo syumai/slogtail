@@ -1,4 +1,4 @@
-import { useState, useCallback, createContext, useContext } from "react";
+import { useState, useCallback, useMemo, createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import type { LogLevel } from "../types";
 
@@ -133,22 +133,41 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const actions: FilterActions = {
-    setSearch,
-    setLevel,
-    setService,
-    setSource,
-    setTimeRange,
-    setLimit,
-    setOffset,
-    setOrder,
-    toggleLiveTail,
-    resetFilters,
-    updateFilters,
-    setJsonFilter,
-  };
+  const actions: FilterActions = useMemo(
+    () => ({
+      setSearch,
+      setLevel,
+      setService,
+      setSource,
+      setTimeRange,
+      setLimit,
+      setOffset,
+      setOrder,
+      toggleLiveTail,
+      resetFilters,
+      updateFilters,
+      setJsonFilter,
+    }),
+    [
+      setSearch,
+      setLevel,
+      setService,
+      setSource,
+      setTimeRange,
+      setLimit,
+      setOffset,
+      setOrder,
+      toggleLiveTail,
+      resetFilters,
+      updateFilters,
+      setJsonFilter,
+    ],
+  );
 
-  const value: FilterContextValue = [state, actions];
+  const value: FilterContextValue = useMemo(
+    () => [state, actions] as const,
+    [state, actions],
+  );
 
   return (
     <FilterContext.Provider value={value}>
