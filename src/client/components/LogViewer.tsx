@@ -220,6 +220,13 @@ export function LogViewer() {
     setSelectedLogId(null);
   }, []);
 
+  const handleTraceIdClick = useCallback(
+    (traceId: string) => {
+      actions.setSearch(`trace_id:${traceId}`);
+    },
+    [actions],
+  );
+
   // Close panel on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -364,7 +371,7 @@ export function LogViewer() {
       )}
 
       {/* Detail slide-over panel */}
-      <LogDetailPanel log={selectedLog} onClose={handleDetailClose} />
+      <LogDetailPanel log={selectedLog} onClose={handleDetailClose} onTraceIdClick={handleTraceIdClick} />
     </div>
   );
 }

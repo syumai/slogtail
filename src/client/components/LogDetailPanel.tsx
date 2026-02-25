@@ -1,26 +1,40 @@
 import { memo, useRef } from "react";
 import type { SerializedLogEntry } from "../api";
+import { useResizablePanel } from "./useResizablePanel";
 
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
 
-const PANEL_WIDTH = 480;
+const DEFAULT_PANEL_WIDTH = 480;
+const MIN_PANEL_WIDTH = 300;
+const MAX_PANEL_WIDTH = 1200;
 
-const panelStyle = (isOpen: boolean): React.CSSProperties => ({
+const panelStyle = (isOpen: boolean, width: number): React.CSSProperties => ({
   position: "fixed",
   top: 0,
   right: 0,
   bottom: 0,
-  width: `${PANEL_WIDTH}px`,
+  width: `${width}px`,
   backgroundColor: "#12122a",
   borderLeft: "1px solid #2a2a4a",
-  transform: isOpen ? "translateX(0)" : `translateX(${PANEL_WIDTH}px)`,
-  transition: "transform 0.25s ease-in-out",
+  transform: isOpen ? "translateX(0)" : `translateX(${width}px)`,
+  transition: isOpen ? "none" : "transform 0.25s ease-in-out",
   zIndex: 100,
   display: "flex",
   flexDirection: "column",
   boxShadow: isOpen ? "-4px 0 20px rgba(0, 0, 0, 0.5)" : "none",
+});
+
+const resizeHandleStyle = (isResizing: boolean): React.CSSProperties => ({
+  position: "absolute",
+  top: 0,
+  left: 0,
+  bottom: 0,
+  width: "4px",
+  cursor: "col-resize",
+  backgroundColor: isResizing ? "#3a3a5a" : "transparent",
+  zIndex: 101,
 });
 
 const panelHeaderStyle: React.CSSProperties = {
@@ -46,11 +60,11 @@ const closeButtonStyle: React.CSSProperties = {
   lineHeight: 1,
 };
 
-const panelBodyStyle: React.CSSProperties = {
+export const panelBodyStyle: React.CSSProperties = {
   flex: 1,
   overflowY: "auto",
   padding: "12px 16px",
-  fontSize: "12px",
+  fontSize: "14px",
   fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
 };
 
@@ -96,6 +110,17 @@ const headerButtonsStyle: React.CSSProperties = {
 // ---------------------------------------------------------------------------
 
 export const EXCLUDED_KEYS: ReadonlySet<string> = new Set(["_id", "_ingested"]);
+
+// ---------------------------------------------------------------------------
+// trace_id key constant (Req 6.9)
+// ---------------------------------------------------------------------------
+
+export const TRACE_ID_KEY = "trace_id";
+
+const traceIdClickableStyle: React.CSSProperties = {
+  cursor: "pointer",
+  textDecoration: "underline",
+};
 
 // ---------------------------------------------------------------------------
 // flattenObject - Flatten a JSON object into a list of dot-separated key/value pairs
@@ -216,13 +241,21 @@ function formatValue(value: unknown): string {
 interface LogDetailPanelProps {
   log: SerializedLogEntry | null;
   onClose: () => void;
+  onTraceIdClick?: (traceId: string) => void;
 }
 
 export const LogDetailPanel = memo(function LogDetailPanel({
   log,
   onClose,
+  onTraceIdClick,
 }: LogDetailPanelProps) {
   const isOpen = log !== null;
+
+  const { width, isResizing, handleMouseDown } = useResizablePanel({
+    initialWidth: DEFAULT_PANEL_WIDTH,
+    minWidth: MIN_PANEL_WIDTH,
+    maxWidth: MAX_PANEL_WIDTH,
+  });
 
   // Keep last log for smooth slide-out animation
   const lastLogRef = useRef<SerializedLogEntry | null>(null);
@@ -230,7 +263,12 @@ export const LogDetailPanel = memo(function LogDetailPanel({
   const displayLog = log ?? lastLogRef.current;
 
   return (
-    <div style={panelStyle(isOpen)}>
+    <div style={panelStyle(isOpen, width)}>
+      {/* Resize handle */}
+      <div
+        style={resizeHandleStyle(isResizing)}
+        onMouseDown={handleMouseDown}
+      />
       {displayLog && (
         <>
           <div style={panelHeaderStyle}>
@@ -261,7 +299,20 @@ export const LogDetailPanel = memo(function LogDetailPanel({
               <div style={fieldRowStyle} key={key}>
                 <span style={fieldNameStyle}>{key}</span>
                 <span
-                  style={{ ...fieldValueStyle, ...valueColorStyle(value) }}
+                  style={{
+                    ...fieldValueStyle,
+                    ...valueColorStyle(value),
+                    ...(key === TRACE_ID_KEY && typeof value === "string"
+                      ? traceIdClickableStyle
+                      : {}),
+                  }}
+                  onClick={
+                    key === TRACE_ID_KEY &&
+                    typeof value === "string" &&
+                    onTraceIdClick
+                      ? () => onTraceIdClick(value)
+                      : undefined
+                  }
                 >
                   {formatValue(value)}
                 </span>

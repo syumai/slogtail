@@ -4,7 +4,33 @@ import {
   EXCLUDED_KEYS,
   valueColorStyle,
   copyToClipboard,
+  panelBodyStyle,
+  TRACE_ID_KEY,
 } from "./LogDetailPanel";
+
+// ---------------------------------------------------------------------------
+// panelBodyStyle - font size (Req 6.7)
+// ---------------------------------------------------------------------------
+
+describe("panelBodyStyle", () => {
+  it("has fontSize set to 14px", () => {
+    expect(panelBodyStyle.fontSize).toBe("14px");
+  });
+
+  it("uses a monospace font family", () => {
+    expect(panelBodyStyle.fontFamily).toContain("monospace");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TRACE_ID_KEY - constant for trace_id field identification
+// ---------------------------------------------------------------------------
+
+describe("TRACE_ID_KEY", () => {
+  it("equals 'trace_id'", () => {
+    expect(TRACE_ID_KEY).toBe("trace_id");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // EXCLUDED_KEYS
