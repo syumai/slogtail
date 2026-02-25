@@ -71,29 +71,86 @@ const fieldValueStyle: React.CSSProperties = {
   wordBreak: "break-all",
 };
 
-const rawJsonStyle: React.CSSProperties = {
-  marginTop: "8px",
-  padding: "8px",
-  backgroundColor: "#0a0a1a",
-  borderRadius: "4px",
-  color: "#a0a0c0",
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-all",
-  overflow: "auto",
-  fontSize: "12px",
-};
+// ---------------------------------------------------------------------------
+// Excluded keys (hidden from detail panel)
+// ---------------------------------------------------------------------------
+
+export const EXCLUDED_KEYS: ReadonlySet<string> = new Set(["_id", "_ingested"]);
+
+// ---------------------------------------------------------------------------
+// flattenObject - Flatten a JSON object into a list of dot-separated key/value pairs
+// ---------------------------------------------------------------------------
+
+const MAX_DEPTH = 10;
+
+export function flattenObject(
+  obj: Record<string, unknown>,
+  prefix?: string,
+  _seen?: WeakSet<object>,
+  _depth?: number,
+): Array<{ key: string; value: unknown }> {
+  const seen = _seen ?? new WeakSet<object>();
+  const depth = _depth ?? 0;
+  const result: Array<{ key: string; value: unknown }> = [];
+
+  // Add the current object to seen to detect self-references
+  seen.add(obj);
+
+  for (const [k, v] of Object.entries(obj)) {
+    // Exclude management properties at top level only (no prefix)
+    if (!prefix && EXCLUDED_KEYS.has(k)) {
+      continue;
+    }
+
+    const fullKey = prefix ? `${prefix}.${k}` : k;
+
+    // Check if value is a plain object (not array, not null)
+    if (
+      v !== null &&
+      typeof v === "object" &&
+      !Array.isArray(v)
+    ) {
+      // Circular reference detection
+      if (seen.has(v as object)) {
+        continue;
+      }
+      seen.add(v as object);
+
+      // Max depth check
+      if (depth >= MAX_DEPTH - 1) {
+        result.push({ key: fullKey, value: v });
+        continue;
+      }
+
+      // Recurse into nested object
+      const nested = flattenObject(
+        v as Record<string, unknown>,
+        fullKey,
+        seen,
+        depth + 1,
+      );
+
+      // If nested object is empty, skip it entirely
+      if (nested.length > 0) {
+        result.push(...nested);
+      }
+    } else {
+      result.push({ key: fullKey, value: v });
+    }
+  }
+
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function renderField(name: string, value: string) {
-  return (
-    <div style={fieldRowStyle} key={name}>
-      <span style={fieldNameStyle}>{name}</span>
-      <span style={fieldValueStyle}>{value}</span>
-    </div>
-  );
+function formatValue(value: unknown): string {
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -131,27 +188,12 @@ export const LogDetailPanel = memo(function LogDetailPanel({
             </button>
           </div>
           <div style={panelBodyStyle}>
-            {renderField("_id", displayLog._id)}
-            {renderField("_ingested", displayLog._ingested)}
-            {renderField("timestamp", displayLog.timestamp ?? "null")}
-            {renderField("level", displayLog.level ?? "null")}
-            {renderField("message", displayLog.message ?? "null")}
-            {renderField("service", displayLog.service ?? "null")}
-            {renderField("trace_id", displayLog.trace_id ?? "null")}
-            {renderField("host", displayLog.host ?? "null")}
-            {renderField(
-              "duration_ms",
-              displayLog.duration_ms !== null
-                ? String(displayLog.duration_ms)
-                : "null",
-            )}
-            {renderField("source", displayLog.source)}
-            <div style={{ marginTop: "12px" }}>
-              <span style={fieldNameStyle}>_raw</span>
-              <pre style={rawJsonStyle}>
-                {JSON.stringify(displayLog._raw, null, 2)}
-              </pre>
-            </div>
+            {flattenObject(displayLog._raw).map(({ key, value }) => (
+              <div style={fieldRowStyle} key={key}>
+                <span style={fieldNameStyle}>{key}</span>
+                <span style={fieldValueStyle}>{formatValue(value)}</span>
+              </div>
+            ))}
           </div>
         </>
       )}
