@@ -3,14 +3,51 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { LogDatabase } from "./db";
 import type { Ingester } from "./ingester";
-import type { ErrorResponse, LogQueryParams } from "../types";
+import type { ErrorResponse, LogLevel, LogQueryParams } from "../types";
+import { LOG_LEVELS } from "../types";
+
+// ---------------------------------------------------------------------------
+// Helpers: comma-separated value parsing
+// ---------------------------------------------------------------------------
+
+function splitLevels(csv: string | undefined): LogLevel[] | undefined {
+  if (!csv) return undefined;
+  const levels = csv.split(",").filter((v) => (LOG_LEVELS as readonly string[]).includes(v)) as LogLevel[];
+  return levels.length > 0 ? levels : undefined;
+}
+
+function splitStrings(csv: string | undefined): string[] | undefined {
+  if (!csv) return undefined;
+  const values = csv.split(",").filter(Boolean);
+  return values.length > 0 ? values : undefined;
+}
+
+function parseJsonFilters(raw: string | undefined): Record<string, string[]> | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
+    const result: Record<string, string[]> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (Array.isArray(value)) {
+        result[key] = value.map(String);
+      } else if (typeof value === "string") {
+        // Backward compatibility: single string values
+        result[key] = [value];
+      }
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
 // ---------------------------------------------------------------------------
 
 const logQuerySchema = z.object({
-  level: z.enum(["DEBUG", "INFO", "WARN", "ERROR", "FATAL"]).optional(),
+  level: z.string().optional(),
   service: z.string().optional(),
   source: z.string().optional(),
   search: z.string().optional(),
@@ -32,7 +69,7 @@ const sqlQuerySchema = z.object({
 
 const exportSchema = z.object({
   format: z.enum(["csv", "json"]),
-  level: z.enum(["DEBUG", "INFO", "WARN", "ERROR", "FATAL"]).optional(),
+  level: z.string().optional(),
   service: z.string().optional(),
   source: z.string().optional(),
   search: z.string().optional(),
@@ -48,7 +85,7 @@ const ingestBodySchema = z.union([
 const facetQuerySchema = z.object({
   field: z.string(),
   jsonPath: z.string().optional(),
-  level: z.enum(["DEBUG", "INFO", "WARN", "ERROR", "FATAL"]).optional(),
+  level: z.string().optional(),
   service: z.string().optional(),
   source: z.string().optional(),
   search: z.string().optional(),
@@ -166,25 +203,17 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
     .get("/logs", zValidator("query", logQuerySchema, validationHook), async (c) => {
       try {
         const params = c.req.valid("query");
-        let jsonFilters: Record<string, string> | undefined;
-        if (params.jsonFilters) {
-          try {
-            jsonFilters = JSON.parse(params.jsonFilters);
-          } catch {
-            // ignore malformed jsonFilters
-          }
-        }
         const queryParams: LogQueryParams = {
-          level: params.level,
-          service: params.service,
-          source: params.source,
+          level: splitLevels(params.level),
+          service: splitStrings(params.service),
+          source: splitStrings(params.source),
           search: params.search,
           startTime: params.startTime,
           endTime: params.endTime,
           limit: params.limit,
           offset: params.offset,
           order: params.order,
-          jsonFilters,
+          jsonFilters: parseJsonFilters(params.jsonFilters),
         };
         const result = await db.queryLogs(queryParams);
         return c.json({
@@ -241,9 +270,9 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
       try {
         const params = c.req.valid("json");
         const queryParams: LogQueryParams = {
-          level: params.level,
-          service: params.service,
-          source: params.source,
+          level: splitLevels(params.level),
+          service: splitStrings(params.service),
+          source: splitStrings(params.source),
           search: params.search,
           startTime: params.startTime,
           endTime: params.endTime,
@@ -304,22 +333,14 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
     .get("/facets", zValidator("query", facetQuerySchema, validationHook), async (c) => {
       try {
         const params = c.req.valid("query");
-        let jsonFilters: Record<string, string> | undefined;
-        if (params.jsonFilters) {
-          try {
-            jsonFilters = JSON.parse(params.jsonFilters);
-          } catch {
-            // ignore malformed jsonFilters
-          }
-        }
         const filters: Partial<LogQueryParams> = {
-          level: params.level,
-          service: params.service,
-          source: params.source,
+          level: splitLevels(params.level),
+          service: splitStrings(params.service),
+          source: splitStrings(params.source),
           search: params.search,
           startTime: params.startTime,
           endTime: params.endTime,
-          jsonFilters,
+          jsonFilters: parseJsonFilters(params.jsonFilters),
         };
         const distribution = await db.getFacetDistribution(
           params.field,

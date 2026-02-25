@@ -16,13 +16,13 @@ import type {
  * Empty/undefined filter matches everything.
  */
 export function matchesFilter(log: NormalizedLog, filter: WSFilter): boolean {
-  if (filter.level !== undefined && log.level !== filter.level) {
+  if (filter.level && filter.level.length > 0 && !filter.level.includes(log.level as any)) {
     return false;
   }
-  if (filter.service !== undefined && log.service !== filter.service) {
+  if (filter.service && filter.service.length > 0 && !filter.service.includes(log.service ?? "")) {
     return false;
   }
-  if (filter.source !== undefined && log.source !== filter.source) {
+  if (filter.source && filter.source.length > 0 && !filter.source.includes(log.source)) {
     return false;
   }
   if (filter.search !== undefined && filter.search !== "") {
@@ -167,14 +167,20 @@ export class WSHandler {
     const filterObj = msg.filter as Record<string, unknown>;
     const filter: WSFilter = {};
 
-    if (typeof filterObj.level === "string") {
-      filter.level = filterObj.level as WSFilter["level"];
+    if (Array.isArray(filterObj.level)) {
+      filter.level = filterObj.level.filter((v): v is string => typeof v === "string") as WSFilter["level"];
+    } else if (typeof filterObj.level === "string") {
+      filter.level = [filterObj.level] as WSFilter["level"];
     }
-    if (typeof filterObj.service === "string") {
-      filter.service = filterObj.service;
+    if (Array.isArray(filterObj.service)) {
+      filter.service = filterObj.service.filter((v): v is string => typeof v === "string");
+    } else if (typeof filterObj.service === "string") {
+      filter.service = [filterObj.service];
     }
-    if (typeof filterObj.source === "string") {
-      filter.source = filterObj.source;
+    if (Array.isArray(filterObj.source)) {
+      filter.source = filterObj.source.filter((v): v is string => typeof v === "string");
+    } else if (typeof filterObj.source === "string") {
+      filter.source = [filterObj.source];
     }
     if (typeof filterObj.search === "string") {
       filter.search = filterObj.search;

@@ -26,24 +26,24 @@ function buildFilterTags(
 ): FilterTag[] {
   const tags: FilterTag[] = [];
 
-  if (filters.level) {
+  if (filters.level.length > 0) {
     tags.push({
       key: "level",
-      label: `level: ${filters.level}`,
+      label: `level: ${filters.level.join(", ")}`,
       onRemove: () => actions.setLevel(undefined),
     });
   }
-  if (filters.service) {
+  if (filters.service.length > 0) {
     tags.push({
       key: "service",
-      label: `service: ${filters.service}`,
+      label: `service: ${filters.service.join(", ")}`,
       onRemove: () => actions.setService(undefined),
     });
   }
-  if (filters.source) {
+  if (filters.source.length > 0) {
     tags.push({
       key: "source",
-      label: `source: ${filters.source}`,
+      label: `source: ${filters.source.join(", ")}`,
       onRemove: () => actions.setSource(undefined),
     });
   }
@@ -171,6 +171,9 @@ export function SearchBar() {
 
   const tags = buildFilterTags(filters, actions);
 
+  // Show first selected level in dropdown (or empty for "All Levels")
+  const dropdownLevel = filters.level.length === 1 ? filters.level[0] : "";
+
   return (
     <div style={containerStyle}>
       <div style={rowStyle}>
@@ -185,7 +188,7 @@ export function SearchBar() {
           />
         </form>
         <select
-          value={filters.level ?? ""}
+          value={dropdownLevel}
           onChange={handleLevelChange}
           style={selectStyle}
         >

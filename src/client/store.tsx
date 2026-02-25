@@ -8,20 +8,23 @@ import type { LogLevel } from "../types";
 
 export interface FilterState {
   search?: string;
-  level?: LogLevel;
-  service?: string;
-  source?: string;
+  level: LogLevel[];
+  service: string[];
+  source: string[];
   startTime?: Date;
   endTime?: Date;
   limit: number;
   offset: number;
   order: "asc" | "desc";
   isLiveTail: boolean;
-  /** Custom facet filters: jsonPath -> selected value */
-  jsonFilters: Record<string, string>;
+  /** Custom facet filters: jsonPath -> selected values (OR within same key) */
+  jsonFilters: Record<string, string[]>;
 }
 
 const DEFAULT_FILTER_STATE: FilterState = {
+  level: [],
+  service: [],
+  source: [],
   limit: 200,
   offset: 0,
   order: "desc",
@@ -36,8 +39,11 @@ const DEFAULT_FILTER_STATE: FilterState = {
 export interface FilterActions {
   setSearch(search: string | undefined): void;
   setLevel(level: LogLevel | undefined): void;
+  toggleLevel(level: LogLevel): void;
   setService(service: string | undefined): void;
+  toggleService(service: string): void;
   setSource(source: string | undefined): void;
+  toggleSource(source: string): void;
   setTimeRange(startTime: Date | undefined, endTime: Date | undefined): void;
   setLimit(limit: number): void;
   setOffset(offset: number): void;
@@ -45,7 +51,15 @@ export interface FilterActions {
   toggleLiveTail(): void;
   resetFilters(): void;
   updateFilters(partial: Partial<FilterState>): void;
-  setJsonFilter(jsonPath: string, value: string | undefined): void;
+  toggleJsonFilter(jsonPath: string, value: string): void;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function toggleInArray<T>(arr: T[], value: T): T[] {
+  return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
 }
 
 // ---------------------------------------------------------------------------
@@ -69,17 +83,38 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   );
 
   const setLevel = useCallback(
-    (level: LogLevel | undefined) => setState((s) => ({ ...s, level, offset: 0 })),
+    (level: LogLevel | undefined) =>
+      setState((s) => ({ ...s, level: level ? [level] : [], offset: 0 })),
+    [],
+  );
+
+  const toggleLevel = useCallback(
+    (level: LogLevel) =>
+      setState((s) => ({ ...s, level: toggleInArray(s.level, level), offset: 0 })),
     [],
   );
 
   const setService = useCallback(
-    (service: string | undefined) => setState((s) => ({ ...s, service, offset: 0 })),
+    (service: string | undefined) =>
+      setState((s) => ({ ...s, service: service ? [service] : [], offset: 0 })),
+    [],
+  );
+
+  const toggleService = useCallback(
+    (service: string) =>
+      setState((s) => ({ ...s, service: toggleInArray(s.service, service), offset: 0 })),
     [],
   );
 
   const setSource = useCallback(
-    (source: string | undefined) => setState((s) => ({ ...s, source, offset: 0 })),
+    (source: string | undefined) =>
+      setState((s) => ({ ...s, source: source ? [source] : [], offset: 0 })),
+    [],
+  );
+
+  const toggleSource = useCallback(
+    (source: string) =>
+      setState((s) => ({ ...s, source: toggleInArray(s.source, source), offset: 0 })),
     [],
   );
 
@@ -119,14 +154,16 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const setJsonFilter = useCallback(
-    (jsonPath: string, value: string | undefined) =>
+  const toggleJsonFilter = useCallback(
+    (jsonPath: string, value: string) =>
       setState((s) => {
         const jsonFilters = { ...s.jsonFilters };
-        if (value === undefined) {
+        const current = jsonFilters[jsonPath] ?? [];
+        const updated = toggleInArray(current, value);
+        if (updated.length === 0) {
           delete jsonFilters[jsonPath];
         } else {
-          jsonFilters[jsonPath] = value;
+          jsonFilters[jsonPath] = updated;
         }
         return { ...s, jsonFilters, offset: 0 };
       }),
@@ -137,8 +174,11 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     () => ({
       setSearch,
       setLevel,
+      toggleLevel,
       setService,
+      toggleService,
       setSource,
+      toggleSource,
       setTimeRange,
       setLimit,
       setOffset,
@@ -146,13 +186,16 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       toggleLiveTail,
       resetFilters,
       updateFilters,
-      setJsonFilter,
+      toggleJsonFilter,
     }),
     [
       setSearch,
       setLevel,
+      toggleLevel,
       setService,
+      toggleService,
       setSource,
+      toggleSource,
       setTimeRange,
       setLimit,
       setOffset,
@@ -160,7 +203,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
       toggleLiveTail,
       resetFilters,
       updateFilters,
-      setJsonFilter,
+      toggleJsonFilter,
     ],
   );
 

@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { LogDatabase } from "./db";
-import type {
-  NormalizedLog,
-  LogQueryParams,
-} from "../types";
+import type { NormalizedLog } from "../types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -322,19 +319,25 @@ describe("LogDatabase - queryLogs filters", () => {
   });
 
   it("filters by level", async () => {
-    const result = await db.queryLogs({ level: "ERROR", limit: 10, offset: 0, order: "asc" });
+    const result = await db.queryLogs({ level: ["ERROR"], limit: 10, offset: 0, order: "asc" });
     expect(result.total).toBe(2);
     expect(result.logs.every((l) => l.level === "ERROR")).toBe(true);
   });
 
+  it("filters by multiple levels (OR)", async () => {
+    const result = await db.queryLogs({ level: ["ERROR", "WARN"], limit: 10, offset: 0, order: "asc" });
+    expect(result.total).toBe(3);
+    expect(result.logs.every((l) => l.level === "ERROR" || l.level === "WARN")).toBe(true);
+  });
+
   it("filters by service", async () => {
-    const result = await db.queryLogs({ service: "worker", limit: 10, offset: 0, order: "asc" });
+    const result = await db.queryLogs({ service: ["worker"], limit: 10, offset: 0, order: "asc" });
     expect(result.total).toBe(2);
     expect(result.logs.every((l) => l.service === "worker")).toBe(true);
   });
 
   it("filters by source", async () => {
-    const result = await db.queryLogs({ source: "proc-1", limit: 10, offset: 0, order: "asc" });
+    const result = await db.queryLogs({ source: ["proc-1"], limit: 10, offset: 0, order: "asc" });
     expect(result.total).toBe(3);
     expect(result.logs.every((l) => l.source === "proc-1")).toBe(true);
   });
@@ -358,8 +361,8 @@ describe("LogDatabase - queryLogs filters", () => {
 
   it("combines multiple filters with AND", async () => {
     const result = await db.queryLogs({
-      level: "ERROR",
-      service: "api",
+      level: ["ERROR"],
+      service: ["api"],
       limit: 10,
       offset: 0,
       order: "asc",
@@ -491,7 +494,7 @@ describe("LogDatabase - getFacetDistribution", () => {
   });
 
   it("applies filters to facet distribution", async () => {
-    const dist = await db.getFacetDistribution("level", null, { service: "api" });
+    const dist = await db.getFacetDistribution("level", null, { service: ["api"] });
     expect(dist.values).toHaveLength(2);
     // Only logs with service=api: INFO(1), ERROR(1)
     expect(dist.values.find((v) => v.value === "INFO")?.count).toBe(1);
@@ -509,7 +512,7 @@ describe("LogDatabase - getFacetDistribution", () => {
     ];
     await sourceDb.insertBatch(logs);
 
-    const dist = await sourceDb.getFacetDistribution("level", null, { source: "proc-a" });
+    const dist = await sourceDb.getFacetDistribution("level", null, { source: ["proc-a"] });
     expect(dist.values).toHaveLength(2);
     expect(dist.values.find((v) => v.value === "INFO")?.count).toBe(1);
     expect(dist.values.find((v) => v.value === "ERROR")?.count).toBe(1);
@@ -518,7 +521,7 @@ describe("LogDatabase - getFacetDistribution", () => {
   });
 
   it("returns empty values array for facet with no matching data", async () => {
-    const dist = await db.getFacetDistribution("level", null, { service: "nonexistent" });
+    const dist = await db.getFacetDistribution("level", null, { service: ["nonexistent"] });
     expect(dist.field).toBe("level");
     expect(dist.values).toHaveLength(0);
   });
@@ -653,7 +656,7 @@ describe("LogDatabase - exportLogs", () => {
 
   it("exports filtered logs as CSV", async () => {
     const stream = await db.exportLogs(
-      { level: "ERROR", limit: 100, offset: 0, order: "asc" },
+      { level: ["ERROR"], limit: 100, offset: 0, order: "asc" },
       "csv"
     );
     const text = await streamToString(stream);
@@ -677,7 +680,7 @@ describe("LogDatabase - exportLogs", () => {
 
   it("exports filtered logs as JSON", async () => {
     const stream = await db.exportLogs(
-      { service: "worker", limit: 100, offset: 0, order: "asc" },
+      { service: ["worker"], limit: 100, offset: 0, order: "asc" },
       "json"
     );
     const text = await streamToString(stream);

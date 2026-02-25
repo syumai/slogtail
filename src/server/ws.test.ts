@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { WSHandler, matchesFilter } from "./ws";
-import type { NormalizedLog, LogStats, WSFilter } from "../types";
+import type { NormalizedLog, LogStats } from "../types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -59,39 +59,69 @@ describe("matchesFilter", () => {
     expect(matchesFilter(log, {})).toBe(true);
   });
 
-  it("matches by level", () => {
+  it("matches by single level", () => {
     const log = makeNormalizedLog({ level: "ERROR" });
-    expect(matchesFilter(log, { level: "ERROR" })).toBe(true);
-    expect(matchesFilter(log, { level: "INFO" })).toBe(false);
+    expect(matchesFilter(log, { level: ["ERROR"] })).toBe(true);
+    expect(matchesFilter(log, { level: ["INFO"] })).toBe(false);
   });
 
-  it("matches by service", () => {
+  it("matches by multiple levels (OR)", () => {
+    const log = makeNormalizedLog({ level: "WARN" });
+    expect(matchesFilter(log, { level: ["ERROR", "WARN"] })).toBe(true);
+    expect(matchesFilter(log, { level: ["ERROR", "FATAL"] })).toBe(false);
+  });
+
+  it("matches by single service", () => {
     const log = makeNormalizedLog({ service: "api" });
-    expect(matchesFilter(log, { service: "api" })).toBe(true);
-    expect(matchesFilter(log, { service: "worker" })).toBe(false);
+    expect(matchesFilter(log, { service: ["api"] })).toBe(true);
+    expect(matchesFilter(log, { service: ["worker"] })).toBe(false);
   });
 
-  it("matches by source", () => {
+  it("matches by multiple services (OR)", () => {
+    const log = makeNormalizedLog({ service: "api" });
+    expect(matchesFilter(log, { service: ["api", "worker"] })).toBe(true);
+    expect(matchesFilter(log, { service: ["worker", "scheduler"] })).toBe(false);
+  });
+
+  it("matches by single source", () => {
     const log = makeNormalizedLog({ source: "proc-1" });
-    expect(matchesFilter(log, { source: "proc-1" })).toBe(true);
-    expect(matchesFilter(log, { source: "proc-2" })).toBe(false);
+    expect(matchesFilter(log, { source: ["proc-1"] })).toBe(true);
+    expect(matchesFilter(log, { source: ["proc-2"] })).toBe(false);
   });
 
-  it("matches with combined filters (AND logic)", () => {
+  it("matches by multiple sources (OR)", () => {
+    const log = makeNormalizedLog({ source: "proc-1" });
+    expect(matchesFilter(log, { source: ["proc-1", "proc-2"] })).toBe(true);
+    expect(matchesFilter(log, { source: ["proc-2", "proc-3"] })).toBe(false);
+  });
+
+  it("matches with combined filters (AND logic between categories)", () => {
     const log = makeNormalizedLog({ level: "ERROR", service: "api", source: "proc-1" });
-    expect(matchesFilter(log, { level: "ERROR", service: "api", source: "proc-1" })).toBe(true);
-    expect(matchesFilter(log, { level: "ERROR", service: "worker" })).toBe(false);
-    expect(matchesFilter(log, { level: "INFO", service: "api" })).toBe(false);
+    expect(matchesFilter(log, { level: ["ERROR"], service: ["api"], source: ["proc-1"] })).toBe(true);
+    expect(matchesFilter(log, { level: ["ERROR"], service: ["worker"] })).toBe(false);
+    expect(matchesFilter(log, { level: ["INFO"], service: ["api"] })).toBe(false);
+  });
+
+  it("matches with OR within category and AND between categories", () => {
+    const log = makeNormalizedLog({ level: "ERROR", service: "api" });
+    expect(matchesFilter(log, { level: ["ERROR", "WARN"], service: ["api", "worker"] })).toBe(true);
+    expect(matchesFilter(log, { level: ["INFO", "WARN"], service: ["api", "worker"] })).toBe(false);
   });
 
   it("matches when log field is null and filter is set", () => {
     const log = makeNormalizedLog({ level: null });
-    expect(matchesFilter(log, { level: "ERROR" })).toBe(false);
+    expect(matchesFilter(log, { level: ["ERROR"] })).toBe(false);
   });
 
   it("matches when log field is null and filter is not set for that field", () => {
     const log = makeNormalizedLog({ level: null });
-    expect(matchesFilter(log, { service: "api" })).toBe(true);
+    expect(matchesFilter(log, { service: ["api"] })).toBe(true);
+  });
+
+  it("ignores empty arrays (matches everything)", () => {
+    const log = makeNormalizedLog({ level: "ERROR" });
+    expect(matchesFilter(log, { level: [] })).toBe(true);
+    expect(matchesFilter(log, { service: [] })).toBe(true);
   });
 });
 
@@ -146,7 +176,22 @@ describe("WSHandler", () => {
   // ---------------------------------------------------------------------------
 
   describe("handleMessage", () => {
-    it("updates client filter on valid filter message", () => {
+    it("updates client filter on valid filter message with arrays", () => {
+      const ws = createMockWS();
+      handler.handleConnection(ws as any);
+
+      handler.handleMessage(ws as any, JSON.stringify({
+        type: "filter",
+        filter: { level: ["ERROR"], service: ["api"] },
+      }));
+
+      expect(handler.getClientFilter(ws as any)).toEqual({
+        level: ["ERROR"],
+        service: ["api"],
+      });
+    });
+
+    it("wraps single string values in arrays for backward compat", () => {
       const ws = createMockWS();
       handler.handleConnection(ws as any);
 
@@ -156,22 +201,22 @@ describe("WSHandler", () => {
       }));
 
       expect(handler.getClientFilter(ws as any)).toEqual({
-        level: "ERROR",
-        service: "api",
+        level: ["ERROR"],
+        service: ["api"],
       });
     });
 
-    it("updates client filter with source", () => {
+    it("updates client filter with source array", () => {
       const ws = createMockWS();
       handler.handleConnection(ws as any);
 
       handler.handleMessage(ws as any, JSON.stringify({
         type: "filter",
-        filter: { source: "proc-1" },
+        filter: { source: ["proc-1", "proc-2"] },
       }));
 
       expect(handler.getClientFilter(ws as any)).toEqual({
-        source: "proc-1",
+        source: ["proc-1", "proc-2"],
       });
     });
 
@@ -181,15 +226,15 @@ describe("WSHandler", () => {
 
       handler.handleMessage(ws as any, JSON.stringify({
         type: "filter",
-        filter: { level: "ERROR" },
+        filter: { level: ["ERROR"] },
       }));
       handler.handleMessage(ws as any, JSON.stringify({
         type: "filter",
-        filter: { service: "worker" },
+        filter: { service: ["worker"] },
       }));
 
       expect(handler.getClientFilter(ws as any)).toEqual({
-        service: "worker",
+        service: ["worker"],
       });
     });
 
@@ -237,7 +282,7 @@ describe("WSHandler", () => {
       // Not calling handleConnection, so the client is not registered
       handler.handleMessage(ws as any, JSON.stringify({
         type: "filter",
-        filter: { level: "ERROR" },
+        filter: { level: ["ERROR"] },
       }));
       expect(handler.clientCount).toBe(0);
     });
@@ -273,7 +318,7 @@ describe("WSHandler", () => {
       // ws1 filters for ERROR only
       handler.handleMessage(ws1 as any, JSON.stringify({
         type: "filter",
-        filter: { level: "ERROR" },
+        filter: { level: ["ERROR"] },
       }));
 
       const logs = [
@@ -297,12 +342,39 @@ describe("WSHandler", () => {
       expect(ws2LogsMsg.data).toHaveLength(3);
     });
 
+    it("sends matching logs with OR filter within same category", () => {
+      const ws = createMockWS();
+      handler.handleConnection(ws as any);
+
+      // Filter for ERROR OR WARN
+      handler.handleMessage(ws as any, JSON.stringify({
+        type: "filter",
+        filter: { level: ["ERROR", "WARN"] },
+      }));
+
+      const logs = [
+        makeNormalizedLog({ _id: 1n, level: "INFO" }),
+        makeNormalizedLog({ _id: 2n, level: "ERROR" }),
+        makeNormalizedLog({ _id: 3n, level: "WARN" }),
+        makeNormalizedLog({ _id: 4n, level: "DEBUG" }),
+      ];
+      const stats = makeStats();
+
+      handler.broadcast(logs, stats);
+
+      const messages = ws.sent.map((s) => JSON.parse(s));
+      const logsMsg = messages.find((m: any) => m.type === "logs");
+      expect(logsMsg.data).toHaveLength(2);
+      expect(logsMsg.data[0]._id).toBe("2");
+      expect(logsMsg.data[1]._id).toBe("3");
+    });
+
     it("sends stats to all clients regardless of filter", () => {
       const ws1 = createMockWS();
       handler.handleConnection(ws1 as any);
       handler.handleMessage(ws1 as any, JSON.stringify({
         type: "filter",
-        filter: { level: "FATAL" },
+        filter: { level: ["FATAL"] },
       }));
 
       // No logs match FATAL, but stats should still be sent
@@ -327,7 +399,7 @@ describe("WSHandler", () => {
       handler.handleConnection(ws as any);
       handler.handleMessage(ws as any, JSON.stringify({
         type: "filter",
-        filter: { level: "FATAL" },
+        filter: { level: ["FATAL"] },
       }));
 
       const logs = [makeNormalizedLog({ _id: 1n, level: "INFO" })];
@@ -345,7 +417,7 @@ describe("WSHandler", () => {
       handler.handleConnection(ws as any);
       handler.handleMessage(ws as any, JSON.stringify({
         type: "filter",
-        filter: { source: "proc-1" },
+        filter: { source: ["proc-1"] },
       }));
 
       const logs = [

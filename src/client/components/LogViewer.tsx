@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useLogs, useWebSocket } from "../api";
 import type { SerializedLogEntry } from "../api";
 import { useFilters } from "../store";
+import type { LogLevel } from "../../types";
 import { LogRow } from "./LogRow";
 import { LogDetailPanel } from "./LogDetailPanel";
 import { Pagination } from "./Pagination";
@@ -125,9 +126,9 @@ export function LogViewer() {
   const queryFilters = useMemo(
     () => ({
       search: filters.search,
-      level: filters.level,
-      service: filters.service,
-      source: filters.source,
+      level: filters.level.length > 0 ? filters.level : undefined,
+      service: filters.service.length > 0 ? filters.service : undefined,
+      source: filters.source.length > 0 ? filters.source : undefined,
       startTime: filters.startTime,
       endTime: filters.endTime,
       limit: filters.limit,
@@ -163,9 +164,9 @@ export function LogViewer() {
 
   const wsFilter = useMemo(
     () => ({
-      level: filters.level,
-      service: filters.service,
-      source: filters.source,
+      level: filters.level.length > 0 ? filters.level : undefined,
+      service: filters.service.length > 0 ? filters.service : undefined,
+      source: filters.source.length > 0 ? filters.source : undefined,
       search: filters.search,
     }),
     [filters.level, filters.service, filters.source, filters.search],
@@ -245,15 +246,15 @@ export function LogViewer() {
     if (!filters.isLiveTail || !isConnected) return baseLogs;
 
     return baseLogs.filter((log) => {
-      if (filters.level && log.level !== filters.level) return false;
-      if (filters.service && log.service !== filters.service) return false;
-      if (filters.source && log.source !== filters.source) return false;
+      if (filters.level.length > 0 && !filters.level.includes(log.level as LogLevel)) return false;
+      if (filters.service.length > 0 && !filters.service.includes(log.service ?? "")) return false;
+      if (filters.source.length > 0 && !filters.source.includes(log.source)) return false;
       if (filters.search) {
         const needle = filters.search.toLowerCase();
         if (!log.message?.toLowerCase().includes(needle)) return false;
       }
       // Custom JSON facet filters
-      for (const [jsonPath, expected] of Object.entries(filters.jsonFilters)) {
+      for (const [jsonPath, expectedValues] of Object.entries(filters.jsonFilters)) {
         const raw = log._raw;
         if (typeof raw !== "object" || raw === null) return false;
         const segments = jsonPath.split(".");
@@ -265,7 +266,7 @@ export function LogViewer() {
           }
           current = (current as Record<string, unknown>)[seg];
         }
-        if (String(current) !== expected) return false;
+        if (!expectedValues.includes(String(current))) return false;
       }
       return true;
     });

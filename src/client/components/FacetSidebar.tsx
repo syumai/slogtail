@@ -164,9 +164,9 @@ export function FacetSidebar() {
   const queryFilters: Partial<QueryFilters> = useMemo(
     () => ({
       search: filters.search,
-      level: filters.level,
-      service: filters.service,
-      source: filters.source,
+      level: filters.level.length > 0 ? filters.level : undefined,
+      service: filters.service.length > 0 ? filters.service : undefined,
+      source: filters.source.length > 0 ? filters.source : undefined,
       startTime: filters.startTime,
       endTime: filters.endTime,
       jsonFilters: Object.keys(filters.jsonFilters).length > 0 ? filters.jsonFilters : undefined,
@@ -186,45 +186,39 @@ export function FacetSidebar() {
   const facetRefetchInterval = filters.isLiveTail ? 2000 : 0;
 
   // Derive selected values from current filter state
-  const getSelectedValue = useCallback(
-    (field: string): string | null => {
+  const getSelectedValues = useCallback(
+    (field: string): string[] => {
       switch (field) {
         case "level":
-          return filters.level ?? null;
+          return filters.level;
         case "service":
-          return filters.service ?? null;
+          return filters.service;
         case "source":
-          return filters.source ?? null;
+          return filters.source;
         default:
-          return filters.jsonFilters[field] ?? null;
+          return filters.jsonFilters[field] ?? [];
       }
     },
     [filters.level, filters.service, filters.source, filters.jsonFilters],
   );
 
-  // Handle facet value selection/deselection
-  const handleSelect = useCallback(
-    (field: string, value: string | null) => {
+  // Handle facet value toggle (add/remove from selection)
+  const handleToggle = useCallback(
+    (field: string, value: string) => {
       switch (field) {
         case "level":
-          actions.setLevel(
-            (value ?? undefined) as
-              | "DEBUG"
-              | "INFO"
-              | "WARN"
-              | "ERROR"
-              | "FATAL"
-              | undefined,
+          actions.toggleLevel(
+            value as "DEBUG" | "INFO" | "WARN" | "ERROR" | "FATAL",
           );
           break;
         case "service":
-          actions.setService(value ?? undefined);
+          actions.toggleService(value);
           break;
         case "source":
-          actions.setSource(value ?? undefined);
+          actions.toggleSource(value);
           break;
         default:
-          actions.setJsonFilter(field, value ?? undefined);
+          actions.toggleJsonFilter(field, value);
           break;
       }
     },
@@ -299,9 +293,9 @@ export function FacetSidebar() {
             key={facet.jsonPath ?? facet.field}
             definition={facet}
             filters={queryFilters}
-            selectedValue={getSelectedValue(facet.field)}
+            selectedValues={getSelectedValues(facet.field)}
             refetchIntervalMs={facetRefetchInterval}
-            onSelect={handleSelect}
+            onToggle={handleToggle}
             onRemove={handleRemove}
           />
         ))}

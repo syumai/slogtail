@@ -242,9 +242,12 @@ describe("GET /api/logs", () => {
     expect(body.logs[0].message).toBe("timeout error");
   });
 
-  it("returns 400 for invalid level", async () => {
+  it("ignores invalid level values and returns 200", async () => {
     const res = await logsApp.request("/api/logs?level=INVALID");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    // Invalid level is filtered out, so no level filter is applied
+    const body = await res.json();
+    expect(body.total).toBe(5); // All logs returned
   });
 
   it("returns 400 for invalid limit", async () => {

@@ -10,12 +10,12 @@ import type { FacetDefinition } from "../../types";
 export interface FacetPanelProps {
   definition: FacetDefinition;
   filters: Partial<QueryFilters>;
-  /** Currently selected value for this facet (null if none). */
-  selectedValue: string | null;
+  /** Currently selected values for this facet (empty array if none). */
+  selectedValues: string[];
   /** Periodic refetch interval in ms (e.g. during live tail). 0 or undefined to disable. */
   refetchIntervalMs?: number;
-  /** Called when user clicks a facet value to select or deselect it. */
-  onSelect(field: string, value: string | null): void;
+  /** Called when user clicks a facet value to toggle selection. */
+  onToggle(field: string, value: string): void;
   /** Called when user removes a custom (non-default) facet. */
   onRemove?(field: string): void;
 }
@@ -105,9 +105,9 @@ const loadingStyle: React.CSSProperties = {
 export const FacetPanel = memo(function FacetPanel({
   definition,
   filters,
-  selectedValue,
+  selectedValues,
   refetchIntervalMs,
-  onSelect,
+  onToggle,
   onRemove,
 }: FacetPanelProps) {
   // Exclude this facet's own filter so all values are shown with counts
@@ -154,16 +154,13 @@ export const FacetPanel = memo(function FacetPanel({
       .sort((a, b) => a.value.localeCompare(b.value));
   }, [values]);
 
+  const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues]);
+
   const handleValueClick = useCallback(
     (value: string) => {
-      if (selectedValue === value) {
-        // Deselect
-        onSelect(definition.field, null);
-      } else {
-        onSelect(definition.field, value);
-      }
+      onToggle(definition.field, value);
     },
-    [definition.field, selectedValue, onSelect],
+    [definition.field, onToggle],
   );
 
   const handleRemove = useCallback(
@@ -200,7 +197,7 @@ export const FacetPanel = memo(function FacetPanel({
       {mergedValues.length > 0 && (
         <ul style={valueListStyle}>
           {mergedValues.map((v) => {
-            const isSelected = selectedValue === v.value;
+            const isSelected = selectedSet.has(v.value);
             return (
               <li
                 key={v.value}

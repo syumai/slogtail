@@ -58,17 +58,17 @@ export interface LogEntry {
 // --- Query Parameters ---
 
 export interface LogQueryParams {
-  level?: LogLevel;
-  service?: string;
-  source?: string;
+  level?: LogLevel[];
+  service?: string[];
+  source?: string[];
   search?: string;
   startTime?: Date;
   endTime?: Date;
   limit: number;
   offset: number;
   order: "asc" | "desc";
-  /** Custom facet filters: jsonPath -> selected value */
-  jsonFilters?: Record<string, string>;
+  /** Custom facet filters: jsonPath -> selected values (OR within same key) */
+  jsonFilters?: Record<string, string[]>;
 }
 
 // --- Statistics ---
@@ -138,9 +138,9 @@ export function resolveField(fieldName: string): string | null {
 // --- WebSocket Protocol ---
 
 export type WSFilter = {
-  level?: LogLevel;
-  service?: string;
-  source?: string;
+  level?: LogLevel[];
+  service?: string[];
+  source?: string[];
   search?: string;
 };
 

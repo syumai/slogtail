@@ -154,7 +154,7 @@ export class LogDatabase {
   // Statistics
   // -------------------------------------------------------------------------
 
-  async getStats(params?: Pick<LogQueryParams, "source">): Promise<LogStats> {
+  async getStats(params?: { source?: string }): Promise<LogStats> {
     const conn = this.getConnection();
     const whereClause = params?.source
       ? `WHERE source = '${escapeSql(params.source)}'`
@@ -403,16 +403,24 @@ function appendNullableDouble(appender: DuckDBAppender, value: number | null): v
 // WHERE clause builders (shared across queryLogs, getFacetDistribution, exportLogs)
 // ---------------------------------------------------------------------------
 
+function buildArrayCondition(column: string, values: string[]): string {
+  if (values.length === 1) {
+    return `${column} = '${escapeSql(values[0])}'`;
+  }
+  const escaped = values.map((v) => `'${escapeSql(v)}'`).join(", ");
+  return `${column} IN (${escaped})`;
+}
+
 function buildFilterConditions(params: Partial<LogQueryParams>): string[] {
   const conditions: string[] = [];
-  if (params.level) {
-    conditions.push(`level = '${escapeSql(params.level)}'`);
+  if (params.level && params.level.length > 0) {
+    conditions.push(buildArrayCondition("level", params.level));
   }
-  if (params.service) {
-    conditions.push(`service = '${escapeSql(params.service)}'`);
+  if (params.service && params.service.length > 0) {
+    conditions.push(buildArrayCondition("service", params.service));
   }
-  if (params.source) {
-    conditions.push(`source = '${escapeSql(params.source)}'`);
+  if (params.source && params.source.length > 0) {
+    conditions.push(buildArrayCondition("source", params.source));
   }
   if (params.search) {
     conditions.push(`message ILIKE '%${escapeSql(params.search)}%'`);
@@ -424,9 +432,11 @@ function buildFilterConditions(params: Partial<LogQueryParams>): string[] {
     conditions.push(`timestamp <= '${params.endTime.toISOString()}'`);
   }
   if (params.jsonFilters) {
-    for (const [jsonPath, value] of Object.entries(params.jsonFilters)) {
+    for (const [jsonPath, values] of Object.entries(params.jsonFilters)) {
       const expr = `CAST(json_extract(_raw, '${escapeSql("$." + jsonPath)}') AS VARCHAR)`;
-      conditions.push(`${expr} = '${escapeSql(value)}'`);
+      if (values.length > 0) {
+        conditions.push(buildArrayCondition(expr, values));
+      }
     }
   }
   return conditions;

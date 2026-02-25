@@ -16,15 +16,15 @@ export const client = hc<AppType>("/");
 
 export interface QueryFilters {
   search?: string;
-  level?: LogLevel;
-  service?: string;
-  source?: string;
+  level?: LogLevel[];
+  service?: string[];
+  source?: string[];
   startTime?: Date;
   endTime?: Date;
   limit: number;
   offset: number;
   order: "asc" | "desc";
-  jsonFilters?: Record<string, string>;
+  jsonFilters?: Record<string, string[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,6 +50,19 @@ export interface SerializedLogStats {
   byLevel: Record<string, number>;
   errorRate: number;
   timeRange: { min: string | null; max: string | null };
+}
+
+// ---------------------------------------------------------------------------
+// Serialization helpers
+// ---------------------------------------------------------------------------
+
+function joinArray(arr: string[] | undefined): string | undefined {
+  return arr && arr.length > 0 ? arr.join(",") : undefined;
+}
+
+function serializeJsonFilters(filters: Record<string, string[]> | undefined): string | undefined {
+  if (!filters || Object.keys(filters).length === 0) return undefined;
+  return JSON.stringify(filters);
 }
 
 // ---------------------------------------------------------------------------
@@ -83,14 +96,12 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
       offset: String(filters.offset),
       order: filters.order,
       search: filters.search,
-      level: filters.level,
-      service: filters.service,
-      source: filters.source,
+      level: joinArray(filters.level),
+      service: joinArray(filters.service),
+      source: joinArray(filters.source),
       startTime: filters.startTime?.toISOString(),
       endTime: filters.endTime?.toISOString(),
-      jsonFilters: filters.jsonFilters && Object.keys(filters.jsonFilters).length > 0
-        ? JSON.stringify(filters.jsonFilters)
-        : undefined,
+      jsonFilters: serializeJsonFilters(filters.jsonFilters),
     };
 
     client.api.logs
@@ -120,15 +131,14 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchKey triggers refetch
   }, [
     filters.search,
-    filters.level,
-    filters.service,
-    filters.source,
+    JSON.stringify(filters.level),
+    JSON.stringify(filters.service),
+    JSON.stringify(filters.source),
     filters.startTime?.getTime(),
     filters.endTime?.getTime(),
     filters.limit,
     filters.offset,
     filters.order,
-    // Serialize jsonFilters for stable dependency comparison
     JSON.stringify(filters.jsonFilters),
     fetchKey,
   ]);
@@ -230,15 +240,13 @@ export function useFacets(
     const query = {
       field,
       jsonPath: jsonPath ?? undefined,
-      level: filters.level,
-      service: filters.service,
-      source: filters.source,
+      level: joinArray(filters.level),
+      service: joinArray(filters.service),
+      source: joinArray(filters.source),
       search: filters.search,
       startTime: filters.startTime?.toISOString(),
       endTime: filters.endTime?.toISOString(),
-      jsonFilters: filters.jsonFilters && Object.keys(filters.jsonFilters).length > 0
-        ? JSON.stringify(filters.jsonFilters)
-        : undefined,
+      jsonFilters: serializeJsonFilters(filters.jsonFilters),
     };
 
     client.api.facets
@@ -268,9 +276,9 @@ export function useFacets(
   }, [
     field,
     jsonPath,
-    filters.level,
-    filters.service,
-    filters.source,
+    JSON.stringify(filters.level),
+    JSON.stringify(filters.service),
+    JSON.stringify(filters.source),
     filters.search,
     filters.startTime?.getTime(),
     filters.endTime?.getTime(),
@@ -309,7 +317,7 @@ export type WSMessage = WSLogMessage | WSStatsMessage;
 export interface UseWebSocketOptions {
   onLogs?(logs: SerializedLogEntry[]): void;
   onStats?(stats: SerializedLogStats): void;
-  filter?: { level?: string; service?: string; source?: string; search?: string };
+  filter?: { level?: LogLevel[]; service?: string[]; source?: string[]; search?: string };
   enabled?: boolean;
 }
 
@@ -427,9 +435,9 @@ export async function exportLogs(
   const res = await client.api.export.$post({
     json: {
       format,
-      level: filters.level,
-      service: filters.service,
-      source: filters.source,
+      level: filters.level && filters.level.length > 0 ? filters.level.join(",") : undefined,
+      service: filters.service && filters.service.length > 0 ? filters.service.join(",") : undefined,
+      source: filters.source && filters.source.length > 0 ? filters.source.join(",") : undefined,
       search: filters.search,
       startTime: filters.startTime,
       endTime: filters.endTime,
