@@ -62,6 +62,35 @@ Examples:
 `.trimStart();
 
 // ---------------------------------------------------------------------------
+// Line parsing (exported for testing)
+// ---------------------------------------------------------------------------
+
+export function parseLine(
+  line: string,
+  service: string | undefined,
+): Record<string, unknown> | null {
+  const trimmed = line.trim();
+  if (trimmed === "") return null;
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    parsed = { message: trimmed, level: "INFO" };
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return null;
+  }
+
+  if (service !== undefined && !("service" in parsed)) {
+    parsed.service = service;
+  }
+
+  return parsed;
+}
+
+// ---------------------------------------------------------------------------
 // Main relay logic
 // ---------------------------------------------------------------------------
 
@@ -132,24 +161,8 @@ export async function runRelay(args: string[]): Promise<void> {
   resetFlushTimer();
 
   rl.on("line", (line: string) => {
-    const trimmed = line.trim();
-    if (trimmed === "") return;
-
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(trimmed);
-    } catch {
-      return;
-    }
-
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return;
-    }
-
-    // Inject service name if specified and not already present
-    if (opts.service !== undefined && !("service" in parsed)) {
-      parsed.service = opts.service;
-    }
+    const parsed = parseLine(line, opts.service);
+    if (parsed === null) return;
 
     buffer.push(parsed);
 

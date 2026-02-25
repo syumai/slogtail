@@ -106,10 +106,10 @@ describe("Ingester - JSON parsing", () => {
     expect(batch[0].message).toBe("valid1");
     expect(batch[0].level).toBe("INFO");
     expect(batch[1].message).toBe("this is not valid json");
-    expect(batch[1].level).toBeNull();
+    expect(batch[1].level).toBe("INFO");
     expect(batch[2].message).toBe("valid2");
     expect(batch[3].message).toBe("{broken json");
-    expect(batch[3].level).toBeNull();
+    expect(batch[3].level).toBe("INFO");
     expect(batch[4].message).toBe("valid3");
   });
 
@@ -1053,7 +1053,7 @@ describe("Ingester - ingestLines", () => {
     expect(result.total).toBe(3);
     expect(result.logs[0].message).toBe("valid");
     expect(result.logs[1].message).toBe("not-json");
-    expect(result.logs[1].level).toBeNull();
+    expect(result.logs[1].level).toBe("INFO");
     expect(result.logs[2].message).toBe("also-valid");
   });
 
@@ -1148,7 +1148,7 @@ describe("Ingester - plain text line handling", () => {
 
       expect(batch).toHaveLength(1);
       expect(batch[0].message).toBe(expectedMessage);
-      expect(batch[0].level).toBeNull();
+      expect(batch[0].level).toBe("INFO");
       expect(batch[0].timestamp).toBeNull();
       expect(batch[0].service).toBeNull();
       expect(batch[0].trace_id).toBeNull();
@@ -1157,7 +1157,7 @@ describe("Ingester - plain text line handling", () => {
       expect(batch[0].source).toBe("default");
       // _raw must be valid JSON
       expect(() => JSON.parse(batch[0]._raw)).not.toThrow();
-      expect(JSON.parse(batch[0]._raw)).toEqual({ message: expectedMessage });
+      expect(JSON.parse(batch[0]._raw)).toEqual({ message: expectedMessage, level: "INFO" });
     },
   );
 
@@ -1178,7 +1178,7 @@ describe("Ingester - plain text line handling", () => {
     expect(result.logs[0].message).toBe("json log");
     expect(result.logs[0].level).toBe("INFO");
     expect(result.logs[1].message).toBe("plain text log");
-    expect(result.logs[1].level).toBeNull();
-    expect(result.logs[1]._raw).toEqual({ message: "plain text log" });
+    expect(result.logs[1].level).toBe("INFO");
+    expect(result.logs[1]._raw).toEqual({ message: "plain text log", level: "INFO" });
   });
 });

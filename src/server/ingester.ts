@@ -114,7 +114,7 @@ export class Ingester {
       raw = trimmed;
     } catch {
       // Non-JSON line: wrap as plain-text log entry
-      parsed = { message: trimmed };
+      parsed = { message: trimmed, level: "INFO" };
       raw = JSON.stringify(parsed);
     }
 
