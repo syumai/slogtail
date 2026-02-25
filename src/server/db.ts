@@ -230,7 +230,7 @@ export class LogDatabase {
     const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
     const reader = await conn.runAndReadAll(
-      `SELECT ${columnExpr} as val, COUNT(*) as cnt FROM logs ${whereClause} GROUP BY val ORDER BY cnt DESC`
+      `SELECT ${columnExpr} as val, COUNT(*) as cnt FROM logs ${whereClause} GROUP BY val ORDER BY cnt DESC, val ASC`
     );
 
     const values = reader.getRowsJS().map((row) => {
@@ -422,6 +422,12 @@ function buildFilterConditions(params: Partial<LogQueryParams>): string[] {
   }
   if (params.endTime) {
     conditions.push(`timestamp <= '${params.endTime.toISOString()}'`);
+  }
+  if (params.jsonFilters) {
+    for (const [jsonPath, value] of Object.entries(params.jsonFilters)) {
+      const expr = `CAST(json_extract(_raw, '${escapeSql("$." + jsonPath)}') AS VARCHAR)`;
+      conditions.push(`${expr} = '${escapeSql(value)}'`);
+    }
   }
   return conditions;
 }

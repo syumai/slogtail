@@ -132,6 +132,7 @@ export function LogViewer() {
       limit: filters.limit,
       offset: filters.offset,
       order: filters.order,
+      jsonFilters: Object.keys(filters.jsonFilters).length > 0 ? filters.jsonFilters : undefined,
     }),
     [
       filters.search,
@@ -143,6 +144,7 @@ export function LogViewer() {
       filters.limit,
       filters.offset,
       filters.order,
+      filters.jsonFilters,
     ],
   );
 
@@ -227,9 +229,24 @@ export function LogViewer() {
         const needle = filters.search.toLowerCase();
         if (!log.message?.toLowerCase().includes(needle)) return false;
       }
+      // Custom JSON facet filters
+      for (const [jsonPath, expected] of Object.entries(filters.jsonFilters)) {
+        const raw = log._raw;
+        if (typeof raw !== "object" || raw === null) return false;
+        const segments = jsonPath.split(".");
+        let current: unknown = raw;
+        for (const seg of segments) {
+          if (typeof current !== "object" || current === null) {
+            current = undefined;
+            break;
+          }
+          current = (current as Record<string, unknown>)[seg];
+        }
+        if (String(current) !== expected) return false;
+      }
       return true;
     });
-  }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.source, filters.search]);
+  }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.source, filters.search, filters.jsonFilters]);
 
   return (
     <div style={containerStyle}>

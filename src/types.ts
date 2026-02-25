@@ -67,6 +67,8 @@ export interface LogQueryParams {
   limit: number;
   offset: number;
   order: "asc" | "desc";
+  /** Custom facet filters: jsonPath -> selected value */
+  jsonFilters?: Record<string, string>;
 }
 
 // --- Statistics ---

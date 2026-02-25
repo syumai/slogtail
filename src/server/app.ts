@@ -19,6 +19,7 @@ const logQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(10000).default(200),
   offset: z.coerce.number().int().min(0).default(0),
   order: z.enum(["asc", "desc"]).default("desc"),
+  jsonFilters: z.string().optional(),
 });
 
 const statsQuerySchema = z.object({
@@ -53,6 +54,7 @@ const facetQuerySchema = z.object({
   search: z.string().optional(),
   startTime: z.coerce.date().optional(),
   endTime: z.coerce.date().optional(),
+  jsonFilters: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -164,6 +166,14 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
     .get("/logs", zValidator("query", logQuerySchema, validationHook), async (c) => {
       try {
         const params = c.req.valid("query");
+        let jsonFilters: Record<string, string> | undefined;
+        if (params.jsonFilters) {
+          try {
+            jsonFilters = JSON.parse(params.jsonFilters);
+          } catch {
+            // ignore malformed jsonFilters
+          }
+        }
         const queryParams: LogQueryParams = {
           level: params.level,
           service: params.service,
@@ -174,6 +184,7 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
           limit: params.limit,
           offset: params.offset,
           order: params.order,
+          jsonFilters,
         };
         const result = await db.queryLogs(queryParams);
         return c.json({
@@ -293,6 +304,14 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
     .get("/facets", zValidator("query", facetQuerySchema, validationHook), async (c) => {
       try {
         const params = c.req.valid("query");
+        let jsonFilters: Record<string, string> | undefined;
+        if (params.jsonFilters) {
+          try {
+            jsonFilters = JSON.parse(params.jsonFilters);
+          } catch {
+            // ignore malformed jsonFilters
+          }
+        }
         const filters: Partial<LogQueryParams> = {
           level: params.level,
           service: params.service,
@@ -300,6 +319,7 @@ export function createApiApp(db: LogDatabase, ingester?: Ingester) {
           search: params.search,
           startTime: params.startTime,
           endTime: params.endTime,
+          jsonFilters,
         };
         const distribution = await db.getFacetDistribution(
           params.field,

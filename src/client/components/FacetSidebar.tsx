@@ -169,6 +169,7 @@ export function FacetSidebar() {
       source: filters.source,
       startTime: filters.startTime,
       endTime: filters.endTime,
+      jsonFilters: Object.keys(filters.jsonFilters).length > 0 ? filters.jsonFilters : undefined,
     }),
     [
       filters.search,
@@ -177,6 +178,7 @@ export function FacetSidebar() {
       filters.source,
       filters.startTime,
       filters.endTime,
+      filters.jsonFilters,
     ],
   );
 
@@ -194,10 +196,10 @@ export function FacetSidebar() {
         case "source":
           return filters.source ?? null;
         default:
-          return null;
+          return filters.jsonFilters[field] ?? null;
       }
     },
-    [filters.level, filters.service, filters.source],
+    [filters.level, filters.service, filters.source, filters.jsonFilters],
   );
 
   // Handle facet value selection/deselection
@@ -222,7 +224,7 @@ export function FacetSidebar() {
           actions.setSource(value ?? undefined);
           break;
         default:
-          // Custom / non-filterable facets: no action
+          actions.setJsonFilter(field, value ?? undefined);
           break;
       }
     },

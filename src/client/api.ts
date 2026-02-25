@@ -24,6 +24,7 @@ export interface QueryFilters {
   limit: number;
   offset: number;
   order: "asc" | "desc";
+  jsonFilters?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +88,9 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
       source: filters.source,
       startTime: filters.startTime?.toISOString(),
       endTime: filters.endTime?.toISOString(),
+      jsonFilters: filters.jsonFilters && Object.keys(filters.jsonFilters).length > 0
+        ? JSON.stringify(filters.jsonFilters)
+        : undefined,
     };
 
     client.api.logs
@@ -124,6 +128,8 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
     filters.limit,
     filters.offset,
     filters.order,
+    // Serialize jsonFilters for stable dependency comparison
+    JSON.stringify(filters.jsonFilters),
     fetchKey,
   ]);
 
@@ -226,6 +232,9 @@ export function useFacets(
       search: filters.search,
       startTime: filters.startTime?.toISOString(),
       endTime: filters.endTime?.toISOString(),
+      jsonFilters: filters.jsonFilters && Object.keys(filters.jsonFilters).length > 0
+        ? JSON.stringify(filters.jsonFilters)
+        : undefined,
     };
 
     client.api.facets
@@ -260,6 +269,7 @@ export function useFacets(
     filters.search,
     filters.startTime?.getTime(),
     filters.endTime?.getTime(),
+    JSON.stringify(filters.jsonFilters),
     fetchKey,
   ]);
 

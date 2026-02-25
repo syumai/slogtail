@@ -17,6 +17,8 @@ export interface FilterState {
   offset: number;
   order: "asc" | "desc";
   isLiveTail: boolean;
+  /** Custom facet filters: jsonPath -> selected value */
+  jsonFilters: Record<string, string>;
 }
 
 const DEFAULT_FILTER_STATE: FilterState = {
@@ -24,6 +26,7 @@ const DEFAULT_FILTER_STATE: FilterState = {
   offset: 0,
   order: "desc",
   isLiveTail: true,
+  jsonFilters: {},
 };
 
 // ---------------------------------------------------------------------------
@@ -42,6 +45,7 @@ export interface FilterActions {
   toggleLiveTail(): void;
   resetFilters(): void;
   updateFilters(partial: Partial<FilterState>): void;
+  setJsonFilter(jsonPath: string, value: string | undefined): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +119,20 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const setJsonFilter = useCallback(
+    (jsonPath: string, value: string | undefined) =>
+      setState((s) => {
+        const jsonFilters = { ...s.jsonFilters };
+        if (value === undefined) {
+          delete jsonFilters[jsonPath];
+        } else {
+          jsonFilters[jsonPath] = value;
+        }
+        return { ...s, jsonFilters, offset: 0 };
+      }),
+    [],
+  );
+
   const actions: FilterActions = {
     setSearch,
     setLevel,
@@ -127,6 +145,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     toggleLiveTail,
     resetFilters,
     updateFilters,
+    setJsonFilter,
   };
 
   const value: FilterContextValue = [state, actions];

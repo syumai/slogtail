@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useFacets } from "../api";
 import type { QueryFilters } from "../api";
 import type { FacetDefinition } from "../../types";
@@ -66,8 +66,9 @@ const valueItemStyle = (isSelected: boolean): React.CSSProperties => ({
   borderRadius: "3px",
   cursor: "pointer",
   fontSize: "12px",
-  color: isSelected ? "#e0e0ff" : "#c0c0d0",
-  backgroundColor: isSelected ? "#2a3a6a" : "transparent",
+  color: isSelected ? "#fff" : "#c0c0d0",
+  backgroundColor: isSelected ? "#2a4a8a" : "transparent",
+  fontWeight: isSelected ? "bold" : "normal",
   transition: "background-color 0.15s ease",
 });
 
@@ -78,11 +79,11 @@ const valueNameStyle: React.CSSProperties = {
   marginRight: "8px",
 };
 
-const valueCountStyle: React.CSSProperties = {
+const valueCountStyle = (isSelected: boolean): React.CSSProperties => ({
   flexShrink: 0,
-  color: "#6a6a9a",
+  color: isSelected ? "#8ab4ff" : "#6a6a9a",
   fontSize: "11px",
-};
+});
 
 const emptyStyle: React.CSSProperties = {
   padding: "4px 12px",
@@ -109,12 +110,49 @@ export function FacetPanel({
   onSelect,
   onRemove,
 }: FacetPanelProps) {
+  // Exclude this facet's own filter so all values are shown with counts
+  // based on other active filters only.
+  const facetFilters = useMemo(() => {
+    const f = { ...filters };
+    const field = definition.jsonPath ?? definition.field;
+    if (field === "level") delete f.level;
+    else if (field === "service") delete f.service;
+    else if (field === "source") delete f.source;
+    // Exclude custom facet's own jsonFilter
+    if (definition.jsonPath && f.jsonFilters) {
+      const jf = { ...f.jsonFilters };
+      delete jf[definition.field];
+      f.jsonFilters = Object.keys(jf).length > 0 ? jf : undefined;
+    }
+    return f;
+  }, [filters, definition.field, definition.jsonPath]);
+
   const { values, isLoading } = useFacets(
     definition.field,
     definition.jsonPath,
-    filters,
+    facetFilters,
     refetchIntervalMs,
   );
+
+  // Track all values ever seen for this facet to preserve 0-count items.
+  const seenValuesRef = useRef<Map<string, number>>(new Map());
+  const mergedValues = useMemo(() => {
+    // Update seen values with latest counts
+    for (const v of values) {
+      seenValuesRef.current.set(v.value, v.count);
+    }
+    // Set 0 for previously seen values not in current results
+    const currentKeys = new Set(values.map((v) => v.value));
+    for (const key of seenValuesRef.current.keys()) {
+      if (!currentKeys.has(key)) {
+        seenValuesRef.current.set(key, 0);
+      }
+    }
+    // Build sorted array: by count desc, then alphabetically
+    return [...seenValuesRef.current.entries()]
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+  }, [values]);
 
   const handleValueClick = useCallback(
     (value: string) => {
@@ -151,38 +189,43 @@ export function FacetPanel({
         )}
       </div>
 
-      {isLoading && values.length === 0 && (
+      {isLoading && mergedValues.length === 0 && (
         <div style={loadingStyle}>Loading...</div>
       )}
 
-      {!isLoading && values.length === 0 && (
+      {!isLoading && mergedValues.length === 0 && (
         <div style={emptyStyle}>No values</div>
       )}
 
-      {values.length > 0 && (
+      {mergedValues.length > 0 && (
         <ul style={valueListStyle}>
-          {values.map((v) => (
-            <li
-              key={v.value}
-              style={valueItemStyle(selectedValue === v.value)}
-              onClick={() => handleValueClick(v.value)}
-              onMouseEnter={(e) => {
-                if (selectedValue !== v.value) {
-                  (e.currentTarget as HTMLElement).style.backgroundColor =
-                    "#1a1a3a";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (selectedValue !== v.value) {
-                  (e.currentTarget as HTMLElement).style.backgroundColor =
-                    "transparent";
-                }
-              }}
-            >
-              <span style={valueNameStyle}>{v.value || "(empty)"}</span>
-              <span style={valueCountStyle}>{v.count.toLocaleString()}</span>
-            </li>
-          ))}
+          {mergedValues.map((v) => {
+            const isSelected = selectedValue === v.value;
+            return (
+              <li
+                key={v.value}
+                style={valueItemStyle(isSelected)}
+                onClick={() => handleValueClick(v.value)}
+                onMouseEnter={(e) => {
+                  if (!isSelected) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor =
+                      "#1a1a3a";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) {
+                    (e.currentTarget as HTMLElement).style.backgroundColor =
+                      "transparent";
+                  }
+                }}
+              >
+                <span style={valueNameStyle}>{v.value || "(empty)"}</span>
+                <span style={valueCountStyle(isSelected)}>
+                  {v.count.toLocaleString()}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
