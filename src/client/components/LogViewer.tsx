@@ -7,7 +7,7 @@ import { LogRow } from "./LogRow";
 import { LogDetailPanel } from "./LogDetailPanel";
 import { Pagination } from "./Pagination";
 import { useKeyboardNav } from "./useKeyboardNav";
-import { useColumnConfig } from "./useColumnConfig";
+import { useColumnConfig, type ColumnDefinition } from "./useColumnConfig";
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -92,6 +92,7 @@ const headerCellStyle: React.CSSProperties = {
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+  cursor: "pointer",
 };
 
 const headerResizeHandleStyle: React.CSSProperties = {
@@ -142,12 +143,84 @@ interface LogViewerProps {
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
+interface SortState {
+  column: string | null;
+  direction: "asc" | "desc";
+}
+
+function resolveJsonPathValue(data: unknown, path: string): unknown {
+  const segments = path.split(".").filter(Boolean);
+  if (segments.length === 0) return undefined;
+
+  let current: unknown = data;
+  for (const segment of segments) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function resolveColumnValue(log: SerializedLogEntry, column: ColumnDefinition): unknown {
+  if (column.jsonPath) {
+    return resolveJsonPathValue(log._raw, column.jsonPath);
+  }
+  const key = column.field as keyof SerializedLogEntry;
+  if (!(key in log)) return undefined;
+  return log[key];
+}
+
+function toComparable(value: unknown): number | string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return value;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string") {
+    const asNumber = Number(value);
+    if (!Number.isNaN(asNumber) && value.trim() !== "") {
+      return asNumber;
+    }
+    const asDate = Date.parse(value);
+    if (!Number.isNaN(asDate)) {
+      return asDate;
+    }
+    return value.toLowerCase();
+  }
+  if (typeof value === "boolean") return value ? 1 : 0;
+  return JSON.stringify(value);
+}
+
+function compareValues(left: number | string | null, right: number | string | null): number {
+  if (left === null && right === null) return 0;
+  if (left === null) return 1;
+  if (right === null) return -1;
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+  return String(left).localeCompare(String(right), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function nextSortState(prev: SortState, columnId: string): SortState {
+  if (prev.column !== columnId) {
+    return { column: columnId, direction: "asc" };
+  }
+  if (prev.direction === "asc") {
+    return { column: columnId, direction: "desc" };
+  }
+  return { column: null, direction: "asc" };
+}
+
 export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   const [filters, actions] = useFilters();
   const { columns, gridTemplateColumns, setColumnWidth } = useColumnConfig();
   const listRef = useRef<HTMLDivElement>(null);
   const fallbackSearchInputRef = useRef<HTMLInputElement | null>(null);
   const effectiveSearchInputRef = searchInputRef ?? fallbackSearchInputRef;
+  const [sortState, setSortState] = useState<SortState>({
+    column: null,
+    direction: "asc",
+  });
 
   // Fetch logs via REST API (used when live tail is off)
   const queryFilters = useMemo(
@@ -237,6 +310,10 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     actions.toggleLiveTail();
   }, [actions]);
 
+  const handleHeaderSortToggle = useCallback((columnId: string) => {
+    setSortState((prev) => nextSortState(prev, columnId));
+  }, []);
+
   const handleColumnResizeMouseDown = useCallback(
     (columnId: string, currentWidth: number, minWidth: number, event: React.MouseEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -300,6 +377,24 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     });
   }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.host, filters.source, filters.search, filters.jsonFilters]);
 
+  const sortedLogs = useMemo(() => {
+    if (!sortState.column) return displayLogs;
+    const sortColumn = columns.find((column) => column.id === sortState.column);
+    if (!sortColumn) return displayLogs;
+
+    const direction = sortState.direction === "asc" ? 1 : -1;
+    return [...displayLogs]
+      .map((log, index) => ({ log, index }))
+      .sort((left, right) => {
+        const leftValue = toComparable(resolveColumnValue(left.log, sortColumn));
+        const rightValue = toComparable(resolveColumnValue(right.log, sortColumn));
+        const compared = compareValues(leftValue, rightValue) * direction;
+        if (compared !== 0) return compared;
+        return left.index - right.index;
+      })
+      .map((entry) => entry.log);
+  }, [columns, displayLogs, sortState.column, sortState.direction]);
+
   // -------------------------------------------------------------------------
   // Selection state: track by log id, derive selected index from displayLogs
   // -------------------------------------------------------------------------
@@ -307,8 +402,8 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
 
   const selectedIndex = useMemo(() => {
     if (selectedLogId === null) return -1;
-    return displayLogs.findIndex((l) => l._id === selectedLogId);
-  }, [selectedLogId, displayLogs]);
+    return sortedLogs.findIndex((l) => l._id === selectedLogId);
+  }, [selectedLogId, sortedLogs]);
 
   // Auto-scroll to top on new live logs, unless detail panel is open.
   useEffect(() => {
@@ -346,15 +441,15 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   // Keyboard navigation
   // -------------------------------------------------------------------------
   useKeyboardNav({
-    totalItems: displayLogs.length,
+    totalItems: sortedLogs.length,
     selectedIndex,
     isDetailOpen: selectedLogId !== null,
     onSelectIndex: (index) => {
-      if (index < 0 || index >= displayLogs.length) {
+      if (index < 0 || index >= sortedLogs.length) {
         setSelectedLogId(null);
         return;
       }
-      setSelectedLogId(displayLogs[index]?._id ?? null);
+      setSelectedLogId(sortedLogs[index]?._id ?? null);
     },
     onOpenDetail: handleOpenDetail,
     onCloseDetail: handleDetailClose,
@@ -374,13 +469,13 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   // Reset selection when selected log is no longer visible in the current display set
   useEffect(() => {
     if (selectedLogId === null) return;
-    if (displayLogs.some((l) => l._id === selectedLogId)) return;
+    if (sortedLogs.some((l) => l._id === selectedLogId)) return;
     setSelectedLogId(null);
-  }, [displayLogs, selectedLogId]);
+  }, [sortedLogs, selectedLogId]);
 
   const selectedLog = useMemo(
-    () => (selectedLogId ? displayLogs.find((l) => l._id === selectedLogId) ?? null : null),
-    [selectedLogId, displayLogs],
+    () => (selectedLogId ? sortedLogs.find((l) => l._id === selectedLogId) ?? null : null),
+    [selectedLogId, sortedLogs],
   );
 
   return (
@@ -400,6 +495,12 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
           {filters.isLiveTail && (
             <span style={{ color: "#999999" }}>
               {isConnected ? `${liveLogs.length} live logs` : `${total.toLocaleString()} results (polling)`}
+            </span>
+          )}
+          {sortState.column && (
+            <span style={{ color: "#666666" }}>
+              Sorted by {columns.find((column) => column.id === sortState.column)?.label ?? sortState.column}{" "}
+              {sortState.direction === "asc" ? "\u2191" : "\u2193"}
             </span>
           )}
         </div>
@@ -435,8 +536,13 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
                     ? "right"
                     : "left",
             }}
+            onClick={() => handleHeaderSortToggle(column.id)}
+            title="Click to sort (asc / desc / none)"
           >
-            <span>{column.label}</span>
+            <span>
+              {column.label}
+              {sortState.column === column.id && (sortState.direction === "asc" ? " \u25b2" : " \u25bc")}
+            </span>
             <div
               role="separator"
               style={headerResizeHandleStyle}
@@ -457,7 +563,7 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
         {!isLoading && !error && displayLogs.length === 0 && (
           <div style={emptyStyle}>No logs found</div>
         )}
-        {displayLogs.map((log) => (
+        {sortedLogs.map((log) => (
           <LogRow
             key={log._id}
             log={log}
