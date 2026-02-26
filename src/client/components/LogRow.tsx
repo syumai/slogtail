@@ -58,6 +58,7 @@ const rowStyle = (
   fontSize: "13px",
   fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
   transition: "background-color 0.1s ease",
+  userSelect: "none",
 });
 
 const timestampStyle: React.CSSProperties = {
