@@ -373,8 +373,16 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   // When live tail is on: use WebSocket logs if connected, otherwise use polled API logs.
   // Apply client-side filtering for live tail logs to ensure all active filters are respected.
   const displayLogs = useMemo(() => {
+    // When live tail is off, or WS is not connected, just use apiLogs
     const baseLogs = filters.isLiveTail
-      ? (isConnected ? liveLogs : apiLogs)
+      ? (isConnected
+          ? (() => {
+              // Merge liveLogs (newest first) with apiLogs, dedup by _id
+              const seen = new Set(liveLogs.map((l) => l._id));
+              const deduped = [...liveLogs, ...apiLogs.filter((l) => !seen.has(l._id))];
+              return deduped;
+            })()
+          : apiLogs)
       : apiLogs;
 
     if (!filters.isLiveTail || !isConnected) return baseLogs;
