@@ -156,7 +156,14 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   );
 
   const toggleLiveTail = useCallback(
-    () => setState((s) => ({ ...s, isLiveTail: !s.isLiveTail })),
+    () => setState((s) => {
+      const nextLiveTail = !s.isLiveTail;
+      return {
+        ...s,
+        isLiveTail: nextLiveTail,
+        ...(nextLiveTail ? { startTime: undefined, endTime: undefined } : {}),
+      };
+    }),
     [],
   );
 
