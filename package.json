@@ -1,6 +1,6 @@
 {
   "name": "lduck",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Pipe-friendly JSON log viewer powered by DuckDB",
   "type": "module",
   "bin": {
