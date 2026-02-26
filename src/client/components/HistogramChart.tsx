@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HistogramBucket } from "../../types";
 import { LOG_LEVELS } from "../../types";
+import { formatLocalDateTimeTruncated } from "../formatTime";
 import { LEVEL_COLORS } from "./LogRow";
 
 const containerStyle: React.CSSProperties = {
@@ -77,7 +78,7 @@ export function tooltipPositionFromClientPoint(
 function formatBucketTimestamp(timestamp: string): string {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return timestamp;
-  return date.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
+  return formatLocalDateTimeTruncated(date);
 }
 
 function rangeFromIndexes(
@@ -105,7 +106,7 @@ function isBucketInRange(timestamp: string, range: TimeRangeSelection | null | u
 
 export function HistogramChart({
   buckets,
-  height = 80,
+  height = 120,
   selectedRange,
   onTimeRangeSelect,
 }: HistogramChartProps) {

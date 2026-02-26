@@ -94,12 +94,16 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetchKey, setFetchKey] = useState(0);
+  const hasLoadedRef = useRef(false);
 
   const refetch = useCallback(() => setFetchKey((k) => k + 1), []);
 
   useEffect(() => {
     let cancelled = false;
-    setIsLoading(true);
+    // Only show loading indicator on initial fetch to avoid flickering during live updates
+    if (!hasLoadedRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     const query = {
@@ -128,6 +132,7 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
         const body = data as { logs: SerializedLogEntry[]; total: number };
         setLogs(body.logs);
         setTotal(body.total);
+        hasLoadedRef.current = true;
       })
       .catch((err) => {
         if (cancelled) return;
@@ -276,6 +281,7 @@ export function useHistogram(options: UseHistogramOptions): UseHistogramResult {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetchKey, setFetchKey] = useState(0);
+  const hasLoadedRef = useRef(false);
 
   const refetch = useCallback(() => setFetchKey((k) => k + 1), []);
 
@@ -288,12 +294,16 @@ export function useHistogram(options: UseHistogramOptions): UseHistogramResult {
       setData(cached.value);
       setIsLoading(false);
       setError(null);
+      hasLoadedRef.current = true;
       return () => {
         cancelled = true;
       };
     }
 
-    setIsLoading(true);
+    // Only show loading indicator on initial fetch to avoid flickering during live updates
+    if (!hasLoadedRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
     const query = {
       buckets: String(options.buckets ?? 30),
@@ -321,6 +331,7 @@ export function useHistogram(options: UseHistogramOptions): UseHistogramResult {
           expiresAt: Date.now() + HISTOGRAM_CACHE_TTL_MS,
         });
         setData(parsed);
+        hasLoadedRef.current = true;
       })
       .catch((err) => {
         if (cancelled) return;

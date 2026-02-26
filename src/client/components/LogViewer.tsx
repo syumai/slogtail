@@ -112,7 +112,7 @@ const headerCellStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const headerResizeHandleStyle: React.CSSProperties = {
+const getHeaderResizeHandleStyle = (isHovered: boolean): React.CSSProperties => ({
   position: "absolute",
   top: 0,
   right: 0,
@@ -120,7 +120,9 @@ const headerResizeHandleStyle: React.CSSProperties = {
   height: "100%",
   cursor: "col-resize",
   userSelect: "none",
-};
+  backgroundColor: isHovered ? "rgba(255, 255, 255, 0.3)" : "transparent",
+  borderRight: isHovered ? "1px solid rgba(255, 255, 255, 0.5)" : "none",
+});
 
 const emptyStyle: React.CSSProperties = {
   display: "flex",
@@ -248,6 +250,7 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     direction: "asc",
   });
   const [isColumnSettingsOpen, setColumnSettingsOpen] = useState(false);
+  const [hoveredResizeColumnId, setHoveredResizeColumnId] = useState<string | null>(null);
 
   // Fetch logs via REST API (used when live tail is off)
   const queryFilters = useMemo(
@@ -599,7 +602,9 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
             </span>
             <div
               role="separator"
-              style={headerResizeHandleStyle}
+              style={getHeaderResizeHandleStyle(hoveredResizeColumnId === column.id)}
+              onMouseEnter={() => setHoveredResizeColumnId(column.id)}
+              onMouseLeave={() => setHoveredResizeColumnId(null)}
               onMouseDown={(event) =>
                 handleColumnResizeMouseDown(column.id, column.width, column.minWidth, event)
               }

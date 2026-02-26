@@ -1,5 +1,6 @@
 import { memo, useCallback } from "react";
 import type { SerializedLogEntry } from "../api";
+import { formatLocalDateTime } from "../formatTime";
 import type { ColumnDefinition } from "./useColumnConfig";
 
 // ---------------------------------------------------------------------------
@@ -115,7 +116,7 @@ function formatTimestamp(value: string | null): string {
   if (!value) return "--";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toISOString().replace("T", " ").slice(0, 23);
+  return formatLocalDateTime(date);
 }
 
 function formatCellValue(value: unknown): string {

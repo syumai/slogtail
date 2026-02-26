@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useHistogram } from "../api";
+import { formatLocalDateTimeTruncated } from "../formatTime";
 import { useFilters, type FilterState } from "../store";
 import { HistogramChart } from "./HistogramChart";
 
@@ -158,9 +159,7 @@ function formatAppliedRange(filters: FilterState): string {
   if (!filters.startTime || !filters.endTime) {
     return "Custom range not set";
   }
-  return `${filters.startTime.toISOString().slice(0, 19)} ~ ${filters.endTime
-    .toISOString()
-    .slice(0, 19)}`;
+  return `${formatLocalDateTimeTruncated(filters.startTime)} ~ ${formatLocalDateTimeTruncated(filters.endTime)}`;
 }
 
 export function TimeRangeBar() {

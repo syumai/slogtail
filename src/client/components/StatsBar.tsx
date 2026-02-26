@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useStats, useWebSocket } from "../api";
 import type { SerializedLogStats } from "../api";
+import { formatLocalDateTimeTruncated } from "../formatTime";
 import { useFilters } from "../store";
 import { LOG_LEVELS } from "../../types";
 
@@ -61,7 +62,8 @@ export function formatTimeRange(
 
   const fmt = (iso: string) => {
     const d = new Date(iso);
-    return d.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
+    if (Number.isNaN(d.getTime())) return iso;
+    return formatLocalDateTimeTruncated(d);
   };
 
   if (min && max) return `${fmt(min)} - ${fmt(max)}`;

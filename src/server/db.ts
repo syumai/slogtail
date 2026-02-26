@@ -329,8 +329,15 @@ export class LogDatabase {
     const rangeStartMs = Math.min(startTime.getTime(), endTime.getTime());
     const rangeEndMs = Math.max(startTime.getTime(), endTime.getTime());
     const spanMs = Math.max(1000, rangeEndMs - rangeStartMs);
-    const intervalMs = Math.max(1000, Math.floor(spanMs / buckets));
-    const interval = intervalMsToIntervalString(intervalMs);
+    const rawIntervalMs = Math.max(1000, Math.floor(spanMs / buckets));
+    const interval = intervalMsToIntervalString(rawIntervalMs);
+    const normalizedMs = normalizeIntervalMs(rawIntervalMs);
+    const actualBuckets = Math.ceil(spanMs / normalizedMs);
+
+    // Align the start to a normalizedMs boundary so JS and DuckDB agree.
+    // We pass this aligned start as the explicit origin to DuckDB's time_bucket.
+    const alignedStart = Math.floor(rangeStartMs / normalizedMs) * normalizedMs;
+    const origin = new Date(alignedStart).toISOString();
 
     const conditions = buildFilterConditions({
       ...params,
@@ -343,7 +350,7 @@ export class LogDatabase {
 
     const reader = await conn.runAndReadAll(
       `SELECT
-         time_bucket(INTERVAL '${interval}', timestamp) AS bucket,
+         time_bucket(INTERVAL '${interval}', timestamp, TIMESTAMP '${origin}') AS bucket,
          UPPER(level) AS lvl,
          COUNT(*) AS cnt
        FROM logs
@@ -362,9 +369,8 @@ export class LogDatabase {
       countsByBucket.set(bucketIso, current);
     }
 
-    const alignedStart = Math.floor(rangeStartMs / intervalMs) * intervalMs;
-    const histogramBuckets = Array.from({ length: buckets }, (_, i) => {
-      const timestamp = new Date(alignedStart + i * intervalMs).toISOString();
+    const histogramBuckets = Array.from({ length: actualBuckets }, (_, i) => {
+      const timestamp = new Date(alignedStart + i * normalizedMs).toISOString();
       return {
         timestamp,
         counts: countsByBucket.get(timestamp) ?? {},
@@ -523,6 +529,39 @@ function intervalMsToIntervalString(intervalMs: number): string {
   }
   const seconds = Math.max(1, Math.floor(intervalMs / secondMs));
   return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
+}
+
+/**
+ * Convert intervalMs to the same granularity that the SQL interval string uses.
+ *
+ * `intervalMsToIntervalString()` truncates fractional units (e.g. 7500 ms → "7 seconds").
+ * When JS generates bucket timestamps using the *original* intervalMs, those timestamps
+ * won't align with DuckDB's `time_bucket()` output, creating gaps.
+ *
+ * This helper round-trips through the interval string so that both sides use the same value.
+ */
+export function normalizeIntervalMs(intervalMs: number): number {
+  const interval = intervalMsToIntervalString(intervalMs);
+  const match = interval.match(/^(\d+)\s+(\w+)$/);
+  if (!match) return intervalMs;
+
+  const value = parseInt(match[1], 10);
+  const unit = match[2].replace(/s$/, ""); // strip trailing 's' for plural forms
+
+  switch (unit) {
+    case "day":
+      return value * 24 * 60 * 60 * 1000;
+    case "hour":
+      return value * 60 * 60 * 1000;
+    case "minute":
+      return value * 60 * 1000;
+    case "second":
+      return value * 1000;
+    case "millisecond":
+      return value;
+    default:
+      return intervalMs;
+  }
 }
 
 // ---------------------------------------------------------------------------

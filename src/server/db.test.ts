@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { LogDatabase, parseSearchQuery } from "./db";
+import { LogDatabase, parseSearchQuery, normalizeIntervalMs } from "./db";
 import type { NormalizedLog } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -593,6 +593,100 @@ describe("LogDatabase - getHistogram", () => {
       (bucket) => bucket.timestamp === "2026-01-15T10:00:00.000Z",
     );
     expect(first?.counts.INFO ?? 0).toBe(0);
+  });
+});
+
+describe("LogDatabase - getHistogram 15m/120 bucket gap fix", () => {
+  let db: LogDatabase;
+
+  beforeEach(async () => {
+    db = new LogDatabase();
+    await db.initialize(":memory:");
+  });
+
+  afterEach(async () => {
+    if (db) await db.close();
+  });
+
+  it("does not produce gaps when 15m range is split into 120 buckets", async () => {
+    // 15 minutes / 120 buckets = 7500ms raw interval
+    // Without normalization: intervalMsToIntervalString(7500) → "7 seconds"
+    // JS would step by 7500ms but DuckDB groups by 7000ms → keys mismatch → gaps
+    const startTime = new Date("2026-01-15T10:00:00Z");
+    const endTime = new Date("2026-01-15T10:15:00Z");
+
+    // Insert logs spread across the 15-minute window
+    const logs = [];
+    for (let i = 0; i < 30; i++) {
+      const ts = new Date(startTime.getTime() + i * 30_000); // every 30 seconds
+      logs.push(
+        makeLog({
+          _id: BigInt(i + 1),
+          level: "INFO",
+          timestamp: ts,
+        }),
+      );
+    }
+    await db.insertBatch(logs);
+
+    const histogram = await db.getHistogram({
+      buckets: 120,
+      startTime,
+      endTime,
+    });
+
+    // Every bucket with data should have a non-empty counts object.
+    // The total count across all buckets should equal the number of inserted logs.
+    let totalCount = 0;
+    for (const bucket of histogram.buckets) {
+      for (const count of Object.values(bucket.counts)) {
+        totalCount += count;
+      }
+    }
+    expect(totalCount).toBe(30);
+
+    // Verify no duplicate timestamps (which would indicate alignment issues)
+    const timestamps = histogram.buckets.map((b) => b.timestamp);
+    const uniqueTimestamps = new Set(timestamps);
+    expect(uniqueTimestamps.size).toBe(timestamps.length);
+  });
+});
+
+describe("normalizeIntervalMs", () => {
+  it("normalizes 7500ms to 7000ms (7 seconds)", () => {
+    expect(normalizeIntervalMs(7500)).toBe(7000);
+  });
+
+  it("preserves exact second boundaries", () => {
+    expect(normalizeIntervalMs(5000)).toBe(5000);
+  });
+
+  it("preserves exact minute boundaries", () => {
+    expect(normalizeIntervalMs(60000)).toBe(60000);
+    expect(normalizeIntervalMs(120000)).toBe(120000);
+  });
+
+  it("preserves 90000ms (exactly 90 seconds)", () => {
+    // 90000 % 60000 != 0, falls to seconds: floor(90000/1000) = 90 -> "90 seconds" -> 90000
+    expect(normalizeIntervalMs(90000)).toBe(90000);
+  });
+
+  it("normalizes 61500ms to 61000ms (61 seconds)", () => {
+    // 61500 % 60000 != 0, falls to seconds: floor(61500/1000) = 61 -> "61 seconds" -> 61000
+    expect(normalizeIntervalMs(61500)).toBe(61000);
+  });
+
+  it("preserves exact hour boundaries", () => {
+    expect(normalizeIntervalMs(3600000)).toBe(3600000);
+  });
+
+  it("normalizes 3900000ms (65 minutes) to 3900000ms (exact minutes)", () => {
+    // 3900000 % 3600000 != 0, 3900000 % 60000 = 0 -> "65 minutes" -> 3900000
+    expect(normalizeIntervalMs(3900000)).toBe(3900000);
+  });
+
+  it("preserves exact day boundaries", () => {
+    expect(normalizeIntervalMs(86400000)).toBe(86400000);
   });
 });
 
