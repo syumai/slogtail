@@ -152,7 +152,7 @@ export function resolveField(fieldName: string): string | null {
 // --- WebSocket Protocol ---
 
 // Server -> Client (notify-only; log data is fetched via REST API)
-export type WSServerMessage = { type: "notify" };
+export type WSServerMessage = { type: "notify" } | { type: "ping" };
 
 // --- Error Response ---
 

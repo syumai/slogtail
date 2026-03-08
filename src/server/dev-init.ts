@@ -17,6 +17,8 @@ async function initDev(): Promise<{
 }> {
   if (globalThis.__slogtail_dev) {
     console.log("[dev-init] reusing existing DB + Ingester + WSHandler");
+    // Ensure heartbeat is running (idempotent - stops existing timer first)
+    globalThis.__slogtail_dev.wsHandler.startHeartbeat();
     return globalThis.__slogtail_dev;
   }
 
@@ -35,6 +37,7 @@ async function initDev(): Promise<{
   const wsHandler = new WSHandler();
   wsHandler.setDatabase(db);
   wsHandler.subscribe(ingester);
+  wsHandler.startHeartbeat();
 
   globalThis.__slogtail_dev = { db, ingester, wsHandler };
   return { db, ingester, wsHandler };

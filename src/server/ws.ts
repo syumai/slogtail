@@ -12,6 +12,7 @@ interface WSLike {
 }
 
 const NOTIFY_MESSAGE = JSON.stringify({ type: "notify" as const });
+const PING_MESSAGE = JSON.stringify({ type: "ping" as const });
 
 /**
  * Manages WebSocket client connections.
@@ -21,6 +22,7 @@ const NOTIFY_MESSAGE = JSON.stringify({ type: "notify" as const });
  */
 export class WSHandler {
   private clients: Set<WSLike> = new Set();
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Number of currently connected clients */
   get clientCount(): number {
@@ -70,6 +72,30 @@ export class WSHandler {
    */
   handleClose(ws: WSLike): void {
     this.clients.delete(ws);
+  }
+
+  /**
+   * Start sending periodic heartbeat pings to all connected clients.
+   * Keeps connections alive by preventing idle timeouts.
+   */
+  startHeartbeat(intervalMs = 30000): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      for (const ws of this.clients) {
+        if (ws.readyState !== 1) continue;
+        ws.send(PING_MESSAGE);
+      }
+    }, intervalMs);
+  }
+
+  /**
+   * Stop the heartbeat timer.
+   */
+  stopHeartbeat(): void {
+    if (this.heartbeatTimer !== null) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   /**

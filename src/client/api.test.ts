@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
   UseWebSocketOptions,
   WSNotifyMessage,
+  WSPingMessage,
 } from "./api";
 
 // ---------------------------------------------------------------------------
@@ -73,6 +74,14 @@ describe("useWebSocket", () => {
     it("has type 'notify' and no data field", async () => {
       const msg: WSNotifyMessage = { type: "notify" };
       expect(msg.type).toBe("notify");
+      expect(Object.keys(msg)).toEqual(["type"]);
+    });
+  });
+
+  describe("WSPingMessage type", () => {
+    it("has type 'ping' and no data field", async () => {
+      const msg: WSPingMessage = { type: "ping" };
+      expect(msg.type).toBe("ping");
       expect(Object.keys(msg)).toEqual(["type"]);
     });
   });

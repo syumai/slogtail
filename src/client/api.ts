@@ -454,7 +454,11 @@ export interface WSNotifyMessage {
   type: "notify";
 }
 
-export type WSMessage = WSNotifyMessage;
+export interface WSPingMessage {
+  type: "ping";
+}
+
+export type WSMessage = WSNotifyMessage | WSPingMessage;
 
 export interface UseWebSocketOptions {
   onNotify?(): void;
@@ -500,6 +504,11 @@ export function createDebouncedNotify(
   return { trigger, cancel };
 }
 
+// Exponential backoff constants
+const BACKOFF_INITIAL_MS = 1000;
+const BACKOFF_MAX_MS = 30000;
+const BACKOFF_MULTIPLIER = 2;
+
 export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
   const { onNotify, enabled = true, debounceMs = DEFAULT_DEBOUNCE_MS } = options;
 
@@ -507,6 +516,9 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedRef = useRef<{ trigger(): void; cancel(): void } | null>(null);
+  const backoffRef = useRef(BACKOFF_INITIAL_MS);
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
 
   // Store latest callback in ref to avoid re-connecting on changes
   const onNotifyRef = useRef(onNotify);
@@ -528,6 +540,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
       reconnectTimerRef.current = null;
     }
     if (wsRef.current) {
+      // Detach handlers before closing to prevent onclose from scheduling
+      // a spurious reconnect timer (the close is intentional).
+      wsRef.current.onopen = null;
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      wsRef.current.onmessage = null;
       wsRef.current.close();
       wsRef.current = null;
     }
@@ -545,6 +563,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
 
     ws.onopen = () => {
       setIsConnected(true);
+      backoffRef.current = BACKOFF_INITIAL_MS;
     };
 
     ws.onmessage = (event) => {
@@ -553,6 +572,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
         if (msg.type === "notify") {
           debouncedRef.current?.trigger();
         }
+        // ping messages are silently ignored (keepalive)
       } catch {
         // Ignore malformed messages
       }
@@ -560,20 +580,22 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
 
     ws.onclose = () => {
       setIsConnected(false);
-      // Auto-reconnect after 2 seconds if still enabled
-      if (enabled) {
-        reconnectTimerRef.current = setTimeout(connect, 2000);
+      if (enabledRef.current) {
+        const delay = backoffRef.current;
+        backoffRef.current = Math.min(delay * BACKOFF_MULTIPLIER, BACKOFF_MAX_MS);
+        reconnectTimerRef.current = setTimeout(connect, delay);
       }
     };
 
     ws.onerror = () => {
       // onclose will fire after onerror, triggering reconnect
     };
-  }, [cleanup, enabled]);
+  }, [cleanup]);
 
   // Connect/disconnect based on enabled flag
   useEffect(() => {
     if (enabled) {
+      backoffRef.current = BACKOFF_INITIAL_MS;
       connect();
     } else {
       cleanup();
@@ -581,11 +603,32 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
     return cleanup;
   }, [enabled, connect, cleanup]);
 
+  // Reconnect when tab becomes visible again
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)
+      ) {
+        backoffRef.current = BACKOFF_INITIAL_MS;
+        connect();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [enabled, connect]);
+
   const disconnect = useCallback(() => {
     cleanup();
   }, [cleanup]);
 
   const reconnect = useCallback(() => {
+    backoffRef.current = BACKOFF_INITIAL_MS;
     connect();
   }, [connect]);
 

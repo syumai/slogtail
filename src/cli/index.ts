@@ -109,6 +109,7 @@ async function main(): Promise<void> {
   const wsHandler = new WSHandler();
   wsHandler.setDatabase(db);
   wsHandler.subscribe(ingester);
+  wsHandler.startHeartbeat();
 
   // Create API app with database dependency
   const apiApp = createApiApp(db, ingester);

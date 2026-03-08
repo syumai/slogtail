@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { WSHandler } from "./ws";
 
 // ---------------------------------------------------------------------------
@@ -72,6 +72,101 @@ describe("WSHandler", () => {
       // After the refactor, there should be no getClientFilter method
       // The handler simply tracks connected clients without filter state
       expect(handler.clientCount).toBe(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // heartbeat - periodic ping
+  // ---------------------------------------------------------------------------
+
+  describe("heartbeat", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("sends { type: 'ping' } to all OPEN clients at the specified interval", () => {
+      const ws1 = createMockWS();
+      const ws2 = createMockWS();
+      handler.handleConnection(ws1 as any);
+      handler.handleConnection(ws2 as any);
+
+      handler.startHeartbeat(1000);
+
+      vi.advanceTimersByTime(1000);
+
+      expect(ws1.send).toHaveBeenCalledTimes(1);
+      expect(ws2.send).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(ws1.sent[0])).toEqual({ type: "ping" });
+      expect(JSON.parse(ws2.sent[0])).toEqual({ type: "ping" });
+
+      handler.stopHeartbeat();
+    });
+
+    it("does not send to clients with readyState != 1", () => {
+      const wsOpen = createMockWS();
+      const wsClosed = createMockWS();
+      handler.handleConnection(wsOpen as any);
+      handler.handleConnection(wsClosed as any);
+      (wsClosed as any).readyState = 3;
+
+      handler.startHeartbeat(1000);
+      vi.advanceTimersByTime(1000);
+
+      expect(wsOpen.send).toHaveBeenCalledTimes(1);
+      expect(wsClosed.send).not.toHaveBeenCalled();
+
+      handler.stopHeartbeat();
+    });
+
+    it("stops sending pings after stopHeartbeat()", () => {
+      const ws = createMockWS();
+      handler.handleConnection(ws as any);
+
+      handler.startHeartbeat(1000);
+      vi.advanceTimersByTime(1000);
+      expect(ws.send).toHaveBeenCalledTimes(1);
+
+      handler.stopHeartbeat();
+
+      vi.advanceTimersByTime(3000);
+      expect(ws.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("defaults to 30000ms interval", () => {
+      const ws = createMockWS();
+      handler.handleConnection(ws as any);
+
+      handler.startHeartbeat();
+
+      vi.advanceTimersByTime(29999);
+      expect(ws.send).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      expect(ws.send).toHaveBeenCalledTimes(1);
+
+      handler.stopHeartbeat();
+    });
+
+    it("restarts heartbeat if startHeartbeat is called again", () => {
+      const ws = createMockWS();
+      handler.handleConnection(ws as any);
+
+      handler.startHeartbeat(1000);
+      vi.advanceTimersByTime(500);
+
+      // Restart with new interval
+      handler.startHeartbeat(2000);
+      vi.advanceTimersByTime(1500);
+      expect(ws.send).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(500);
+      expect(ws.send).toHaveBeenCalledTimes(1);
+
+      handler.stopHeartbeat();
     });
   });
 
