@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createApiApp } from "./app";
 import { LogDatabase } from "./db";
 import { Ingester } from "./ingester";
@@ -201,8 +201,11 @@ describe("GET /api/logs", () => {
     if (logsDb) await logsDb.close();
   });
 
-  it("returns logs with default parameters", async () => {
-    const res = await logsApp.request("/api/logs");
+  // Base startTime used across tests (before all log timestamps)
+  const baseStartTime = "startTime=2026-01-15T09:00:00Z";
+
+  it("returns logs with startTime and default parameters", async () => {
+    const res = await logsApp.request(`/api/logs?${baseStartTime}`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.logs).toBeDefined();
@@ -211,7 +214,7 @@ describe("GET /api/logs", () => {
   });
 
   it("filters by level", async () => {
-    const res = await logsApp.request("/api/logs?level=ERROR");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&level=ERROR`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.total).toBe(2);
@@ -219,21 +222,21 @@ describe("GET /api/logs", () => {
   });
 
   it("filters by service", async () => {
-    const res = await logsApp.request("/api/logs?service=worker");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&service=worker`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.total).toBe(2);
   });
 
   it("filters by source", async () => {
-    const res = await logsApp.request("/api/logs?source=proc-1");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&source=proc-1`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.total).toBe(3);
   });
 
   it("filters by search term", async () => {
-    const res = await logsApp.request("/api/logs?search=timeout");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&search=timeout`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.total).toBe(1);
@@ -249,7 +252,7 @@ describe("GET /api/logs", () => {
   });
 
   it("respects limit and offset", async () => {
-    const res = await logsApp.request("/api/logs?limit=2&offset=1&order=asc");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&limit=2&offset=1&order=asc`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.logs).toHaveLength(2);
@@ -257,7 +260,7 @@ describe("GET /api/logs", () => {
   });
 
   it("orders by asc", async () => {
-    const res = await logsApp.request("/api/logs?order=asc&limit=5");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&order=asc&limit=5`);
     expect(res.status).toBe(200);
     const body = await res.json();
     // First log should have earliest timestamp
@@ -265,7 +268,7 @@ describe("GET /api/logs", () => {
   });
 
   it("orders by desc (default)", async () => {
-    const res = await logsApp.request("/api/logs?limit=5");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&limit=5`);
     expect(res.status).toBe(200);
     const body = await res.json();
     // First log should have latest timestamp
@@ -273,7 +276,7 @@ describe("GET /api/logs", () => {
   });
 
   it("ignores invalid level values and returns 200", async () => {
-    const res = await logsApp.request("/api/logs?level=INVALID");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&level=INVALID`);
     expect(res.status).toBe(200);
     // Invalid level is filtered out, so no level filter is applied
     const body = await res.json();
@@ -281,27 +284,27 @@ describe("GET /api/logs", () => {
   });
 
   it("returns 400 for invalid limit", async () => {
-    const res = await logsApp.request("/api/logs?limit=0");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&limit=0`);
     expect(res.status).toBe(400);
   });
 
   it("returns 400 for limit exceeding max", async () => {
-    const res = await logsApp.request("/api/logs?limit=99999");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&limit=99999`);
     expect(res.status).toBe(400);
   });
 
   it("returns 400 for negative offset", async () => {
-    const res = await logsApp.request("/api/logs?offset=-1");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&offset=-1`);
     expect(res.status).toBe(400);
   });
 
   it("returns 400 for invalid order", async () => {
-    const res = await logsApp.request("/api/logs?order=random");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&order=random`);
     expect(res.status).toBe(400);
   });
 
   it("combines multiple filters (level + service + source)", async () => {
-    const res = await logsApp.request("/api/logs?level=ERROR&service=api&source=proc-1");
+    const res = await logsApp.request(`/api/logs?${baseStartTime}&level=ERROR&service=api&source=proc-1`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.total).toBe(2);
@@ -317,6 +320,83 @@ describe("GET /api/logs", () => {
     const res = await logsApp.request("/api/logs?startTime=not-a-date");
     expect(res.status).toBe(400);
   });
+
+  // --- Task 1.1: startTime required, limit max 1000, endTime default ---
+
+  it("returns 400 VALIDATION_ERROR when startTime is not provided", async () => {
+    const res = await logsApp.request("/api/logs");
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBeDefined();
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 400 when limit exceeds 1000", async () => {
+    const res = await logsApp.request(
+      "/api/logs?startTime=2026-01-15T09:00:00Z&limit=1001"
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts limit of exactly 1000", async () => {
+    const res = await logsApp.request(
+      "/api/logs?startTime=2026-01-15T09:00:00Z&limit=1000"
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("returns logs when startTime is provided without endTime", async () => {
+    const res = await logsApp.request(
+      "/api/logs?startTime=2026-01-15T09:00:00Z"
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.logs).toBeDefined();
+    // All 5 logs are after startTime, so they should be returned
+    expect(body.total).toBe(5);
+  });
+
+  it("uses server current time as endTime when endTime is not provided", async () => {
+    // Logs have timestamps in 2026-01-15T10:00:00Z - 2026-01-15T10:04:00Z range.
+    // With startTime far in the past and no endTime, the server should use
+    // current time (which is after all log timestamps), so all logs are returned.
+    const res = await logsApp.request(
+      "/api/logs?startTime=2020-01-01T00:00:00Z"
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.total).toBe(5);
+  });
+
+  it("does not return future logs when endTime defaults to now", async () => {
+    // Insert a log with a far-future timestamp
+    const futureDb = new LogDatabase();
+    await futureDb.initialize(":memory:");
+    const futureApp = createApiApp(futureDb);
+
+    const logs = [
+      makeLog({ _id: 100n, message: "past log", timestamp: new Date("2020-01-01T00:00:00Z") }),
+      makeLog({ _id: 101n, message: "future log", timestamp: new Date("2099-01-01T00:00:00Z") }),
+    ];
+    await futureDb.insertBatch(logs);
+
+    const res = await futureApp.request(
+      "/api/logs?startTime=2019-01-01T00:00:00Z"
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Only the past log should be returned since endTime defaults to now
+    expect(body.total).toBe(1);
+    expect(body.logs[0].message).toBe("past log");
+
+    await futureDb.close();
+  });
+
+  // --- Task 1.1: exportSchema is NOT changed (limit=10000 maintained) ---
+
+  // Note: exportSchema does not have a limit field in validation; the handler
+  // hardcodes limit=10000, so no validation test needed here. The key assertion
+  // is that logQuerySchema rejects limit>1000 while export still works.
 });
 
 // ---------------------------------------------------------------------------
