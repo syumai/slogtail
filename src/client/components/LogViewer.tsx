@@ -398,11 +398,19 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   }, [selectedLogId, sortedLogs]);
 
   // Auto-scroll to top on new logs during live tail, unless detail panel is open.
+  // Only scroll when user is near top or when Live Tail is just toggled on.
+  const prevIsLiveTailRef = useRef(filters.isLiveTail);
+
   useEffect(() => {
-    if (filters.isLiveTail && selectedLogId === null && apiLogs.length > 0 && listRef.current) {
+    const justEnabled = !prevIsLiveTailRef.current && filters.isLiveTail;
+    prevIsLiveTailRef.current = filters.isLiveTail;
+
+    if (!filters.isLiveTail || selectedLogId !== null || !listRef.current) return;
+
+    if (justEnabled || listRef.current.scrollTop < 50) {
       listRef.current.scrollTop = 0;
     }
-  }, [filters.isLiveTail, apiLogs.length, selectedLogId]);
+  }, [filters.isLiveTail, apiLogs, selectedLogId]);
 
   // When a row is clicked, toggle selection
   const handleLogSelect = useCallback(
