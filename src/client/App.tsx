@@ -60,7 +60,7 @@ function AppContent() {
   return (
     <div style={appStyle}>
       <header style={headerStyle}>
-        <h1 style={titleStyle}>lduck</h1>
+        <h1 style={titleStyle}>slogtail</h1>
         <ExportButton />
       </header>
       <SearchBar searchInputRef={searchInputRef} />

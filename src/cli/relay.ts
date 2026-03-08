@@ -50,12 +50,12 @@ export function parseRelayArgs(args: string[]): RelayOptions {
 // ---------------------------------------------------------------------------
 
 const RELAY_USAGE = `
-Usage: <command> | lduck relay [options]
+Usage: <command> | slogtail relay [options]
 
-Relay stdin JSON logs to a running lduck server via HTTP POST.
+Relay stdin JSON logs to a running slogtail server via HTTP POST.
 
 Options:
-  -u, --url <url>         Target lduck server URL (default: http://localhost:8080)
+  -u, --url <url>         Target slogtail server URL (default: http://localhost:8080)
   -s, --service <name>    Service name to inject into each log entry
       --batch-size <n>    Lines per HTTP batch (default: 100)
       --interval <ms>     Flush interval in milliseconds (default: 500)
@@ -63,9 +63,9 @@ Options:
   -h, --help              Show this help message
 
 Examples:
-  kubectl logs -f deploy/api | lduck relay --service api
-  cat app.log | lduck relay --url http://lduck:9090 --service backend
-  docker logs -f myapp | lduck relay -s myapp -u http://localhost:8080
+  kubectl logs -f deploy/api | slogtail relay --service api
+  cat app.log | slogtail relay --url http://slogtail:9090 --service backend
+  docker logs -f myapp | slogtail relay -s myapp -u http://localhost:8080
 `.trimStart();
 
 // ---------------------------------------------------------------------------

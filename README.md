@@ -1,21 +1,21 @@
-# lduck
+# slogtail
 
 Pipe-friendly JSON log viewer powered by DuckDB. Reads JSON lines from stdin or HTTP, stores them in DuckDB, and serves a real-time search UI.
 
 ## Install
 
 ```bash
-npm install -g lduck
+npm install -g slogtail
 ```
 
 ## Quick Start
 
-Pipe any JSON-lines output into lduck:
+Pipe any JSON-lines output into slogtail:
 
 ```bash
-kubectl logs -f deploy/api | lduck
-cat app.log | lduck --port 9090
-docker logs -f myapp | lduck --db ./logs.duckdb
+kubectl logs -f deploy/api | slogtail
+cat app.log | slogtail --port 9090
+docker logs -f myapp | slogtail --db ./logs.duckdb
 ```
 
 Then open http://localhost:8080 in your browser.
@@ -34,7 +34,7 @@ Then open http://localhost:8080 in your browser.
 ## CLI Options
 
 ```
-Usage: <command> | lduck [options]
+Usage: <command> | slogtail [options]
 
 Options:
   -p, --port <port>       Server port (default: 8080)
@@ -47,7 +47,7 @@ Options:
 
 ## JSON Format
 
-Each line should be a JSON object. lduck normalizes common field names automatically:
+Each line should be a JSON object. slogtail normalizes common field names automatically:
 
 | Field | Aliases |
 |-------|---------|
@@ -95,8 +95,8 @@ curl -X POST http://localhost:8080/api/ingest \
 ## Development
 
 ```bash
-git clone https://github.com/syumai/lduck.git
-cd lduck
+git clone https://github.com/syumai/slogtail.git
+cd slogtail
 pnpm install
 pnpm dev            # Start Vite dev server
 pnpm test           # Run tests
@@ -107,11 +107,11 @@ pnpm build          # Build for production
 ### Test Log Generation
 
 ```bash
-# stdout (pipe to lduck)
-pnpm generate-logs | lduck
+# stdout (pipe to slogtail)
+pnpm generate-logs | slogtail
 
-# relay (send to running lduck instance)
-pnpm generate-logs | lduck relay --url http://localhost:8080
+# relay (send to running slogtail instance)
+pnpm generate-logs | slogtail relay --url http://localhost:8080
 ```
 
 ## License

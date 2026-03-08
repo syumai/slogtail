@@ -36,7 +36,7 @@ export interface UseColumnConfigResult {
   gridTemplateColumns: string;
 }
 
-const STORAGE_KEY = "lduck-column-config";
+const STORAGE_KEY = "slogtail-column-config";
 const STORAGE_VERSION = 1;
 const SAVE_DEBOUNCE_MS = 200;
 

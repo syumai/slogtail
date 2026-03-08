@@ -1,10 +1,10 @@
 {
-  "name": "lduck",
+  "name": "slogtail",
   "version": "0.0.7",
   "description": "Pipe-friendly JSON log viewer powered by DuckDB",
   "type": "module",
   "bin": {
-    "lduck": "dist/index.js"
+    "slogtail": "dist/index.js"
   },
   "files": [
     "dist/"
@@ -21,11 +21,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/syumai/lduck.git"
+    "url": "https://github.com/syumai/slogtail.git"
   },
-  "homepage": "https://github.com/syumai/lduck",
+  "homepage": "https://github.com/syumai/slogtail",
   "bugs": {
-    "url": "https://github.com/syumai/lduck/issues"
+    "url": "https://github.com/syumai/slogtail/issues"
   },
   "license": "MIT",
   "engines": {

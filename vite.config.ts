@@ -6,7 +6,7 @@ import { WebSocketServer } from "ws"
 
 function devWebSocketPlugin(): Plugin {
   return {
-    name: "lduck-dev-ws",
+    name: "slogtail-dev-ws",
     configureServer(server) {
       const wss = new WebSocketServer({ noServer: true })
 
@@ -14,7 +14,7 @@ function devWebSocketPlugin(): Plugin {
         const pathname = new URL(req.url ?? "/", "http://localhost").pathname
         if (pathname !== "/api/ws/tail") return
 
-        const wsHandler = globalThis.__lduck_dev?.wsHandler
+        const wsHandler = globalThis.__slogtail_dev?.wsHandler
         if (!wsHandler) {
           socket.destroy()
           return

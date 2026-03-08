@@ -8,7 +8,7 @@ import { FacetPanel } from "./FacetPanel";
 // Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "lduck-facets";
+const STORAGE_KEY = "slogtail-facets";
 
 const DEFAULT_FACETS: FacetDefinition[] = [
   { field: "level", displayName: "Level", jsonPath: null, isDefault: true },

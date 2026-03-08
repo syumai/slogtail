@@ -5,7 +5,7 @@ import { WSHandler } from "./ws";
 // Persist DB, Ingester, and WSHandler across Vite HMR reloads
 declare global {
   // eslint-disable-next-line no-var
-  var __lduck_dev:
+  var __slogtail_dev:
     | { db: LogDatabase; ingester: Ingester; wsHandler: WSHandler }
     | undefined;
 }
@@ -15,9 +15,9 @@ async function initDev(): Promise<{
   ingester: Ingester;
   wsHandler: WSHandler;
 }> {
-  if (globalThis.__lduck_dev) {
+  if (globalThis.__slogtail_dev) {
     console.log("[dev-init] reusing existing DB + Ingester + WSHandler");
-    return globalThis.__lduck_dev;
+    return globalThis.__slogtail_dev;
   }
 
   console.log("[dev-init] initializing new DB + Ingester + WSHandler");
@@ -36,7 +36,7 @@ async function initDev(): Promise<{
   wsHandler.setDatabase(db);
   wsHandler.subscribe(ingester);
 
-  globalThis.__lduck_dev = { db, ingester, wsHandler };
+  globalThis.__slogtail_dev = { db, ingester, wsHandler };
   return { db, ingester, wsHandler };
 }
 

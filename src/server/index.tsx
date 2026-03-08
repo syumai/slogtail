@@ -11,7 +11,7 @@ export function createApp(scriptSrc: string, setup?: (app: Hono) => void) {
         <head>
           <meta charSet="UTF-8" />
           <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-          <title>lduck</title>
+          <title>slogtail</title>
           <ViteClient />
           <ReactRefresh />
         </head>

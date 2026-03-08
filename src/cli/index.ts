@@ -58,12 +58,12 @@ export function parseCLIArgs(args: string[]): ParsedCLIOptions {
 // ---------------------------------------------------------------------------
 
 const USAGE = `
-Usage: <command> | lduck [options]
-       <command> | lduck relay [options]
+Usage: <command> | slogtail [options]
+       <command> | slogtail relay [options]
 
 Commands:
-  (default)    Start the lduck server (Web UI + API)
-  relay        Relay stdin logs to a running lduck server via HTTP
+  (default)    Start the slogtail server (Web UI + API)
+  relay        Relay stdin logs to a running slogtail server via HTTP
 
 Server Options:
   -p, --port <port>       Server port (default: 8080)
@@ -74,11 +74,11 @@ Server Options:
   -h, --help              Show this help message
 
 Examples:
-  kubectl logs -f deploy/api | lduck --port 8080
-  cat app.log | lduck --db ./logs.duckdb
-  docker logs -f myapp | lduck --no-ui -p 9090
-  kubectl logs -f deploy/api | lduck relay --service api
-  docker logs -f myapp | lduck relay -s myapp -u http://localhost:8080
+  kubectl logs -f deploy/api | slogtail --port 8080
+  cat app.log | slogtail --db ./logs.duckdb
+  docker logs -f myapp | slogtail --no-ui -p 9090
+  kubectl logs -f deploy/api | slogtail relay --service api
+  docker logs -f myapp | slogtail relay -s myapp -u http://localhost:8080
 `.trimStart();
 
 // ---------------------------------------------------------------------------
@@ -155,7 +155,7 @@ async function main(): Promise<void> {
   const server = serve(
     { fetch: fullApp.fetch, port: opts.port, hostname: "127.0.0.1" },
     (info) => {
-      console.log(`lduck server listening on http://localhost:${info.port}`);
+      console.log(`slogtail server listening on http://localhost:${info.port}`);
     },
   );
 
@@ -172,12 +172,12 @@ if (!process.env.VITEST) {
 
   if (args[0] === "relay") {
     runRelay(args.slice(1)).catch((err) => {
-      console.error("Failed to run lduck relay:", err);
+      console.error("Failed to run slogtail relay:", err);
       process.exit(1);
     });
   } else {
     main().catch((err) => {
-      console.error("Failed to start lduck:", err);
+      console.error("Failed to start slogtail:", err);
       process.exit(1);
     });
   }

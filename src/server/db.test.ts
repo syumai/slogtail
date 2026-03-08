@@ -111,7 +111,7 @@ describe("LogDatabase - initialization", () => {
     const path = await import("node:path");
     const os = await import("node:os");
 
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "lduck-test-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "slogtail-test-"));
     const dbPath = path.join(tmpDir, "test.duckdb");
 
     try {
