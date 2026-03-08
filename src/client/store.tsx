@@ -22,17 +22,33 @@ export interface FilterState {
   jsonFilters: Record<string, string[]>;
 }
 
-const DEFAULT_FILTER_STATE: FilterState = {
+export const DEFAULT_FILTER_STATE: FilterState = {
   level: [],
   service: [],
   host: [],
   source: [],
-  limit: 200,
+  limit: 1000,
   offset: 0,
   order: "desc",
   isLiveTail: true,
   jsonFilters: {},
+  startTime: new Date(Date.now() - 60 * 60 * 1000),
 };
+
+// ---------------------------------------------------------------------------
+// Pure state transition for toggleLiveTail (exported for testing)
+// ---------------------------------------------------------------------------
+
+export function applyToggleLiveTail(state: FilterState): FilterState {
+  const nextLiveTail = !state.isLiveTail;
+  return {
+    ...state,
+    isLiveTail: nextLiveTail,
+    ...(nextLiveTail
+      ? { startTime: new Date(Date.now() - 60 * 60 * 1000), endTime: undefined }
+      : {}),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Filter Actions
@@ -156,14 +172,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   );
 
   const toggleLiveTail = useCallback(
-    () => setState((s) => {
-      const nextLiveTail = !s.isLiveTail;
-      return {
-        ...s,
-        isLiveTail: nextLiveTail,
-        ...(nextLiveTail ? { startTime: undefined, endTime: undefined } : {}),
-      };
-    }),
+    () => setState((s) => applyToggleLiveTail(s)),
     [],
   );
 
