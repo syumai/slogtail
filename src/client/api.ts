@@ -106,6 +106,7 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
     }
     setError(null);
 
+    const startTime = filters.startTime ?? new Date(Date.now() - 60 * 60 * 1000);
     const query = {
       limit: String(filters.limit),
       offset: String(filters.offset),
@@ -115,7 +116,7 @@ export function useLogs(filters: QueryFilters): UseLogsResult {
       service: joinArray(filters.service),
       host: joinArray(filters.host),
       source: joinArray(filters.source),
-      startTime: filters.startTime?.toISOString(),
+      startTime: startTime.toISOString(),
       endTime: filters.endTime?.toISOString(),
       jsonFilters: serializeJsonFilters(filters.jsonFilters),
     };
@@ -449,23 +450,16 @@ export function useFacets(
 // useWebSocket - WebSocket connection management for live tail
 // ---------------------------------------------------------------------------
 
-export interface WSLogMessage {
-  type: "logs";
-  data: SerializedLogEntry[];
+export interface WSNotifyMessage {
+  type: "notify";
 }
 
-export interface WSStatsMessage {
-  type: "stats";
-  data: SerializedLogStats;
-}
-
-export type WSMessage = WSLogMessage | WSStatsMessage;
+export type WSMessage = WSNotifyMessage;
 
 export interface UseWebSocketOptions {
-  onLogs?(logs: SerializedLogEntry[]): void;
-  onStats?(stats: SerializedLogStats): void;
-  filter?: { level?: LogLevel[]; service?: string[]; source?: string[]; search?: string };
+  onNotify?(): void;
   enabled?: boolean;
+  debounceMs?: number;
 }
 
 export interface UseWebSocketResult {
@@ -474,20 +468,59 @@ export interface UseWebSocketResult {
   disconnect(): void;
 }
 
+// ---------------------------------------------------------------------------
+// createDebouncedNotify - Debounce utility for WebSocket notify messages
+// ---------------------------------------------------------------------------
+
+const DEFAULT_DEBOUNCE_MS = 100;
+
+export function createDebouncedNotify(
+  callback: () => void,
+  delayMs: number = DEFAULT_DEBOUNCE_MS,
+): { trigger(): void; cancel(): void } {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  function trigger() {
+    if (timer !== null) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(() => {
+      timer = null;
+      callback();
+    }, delayMs);
+  }
+
+  function cancel() {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  }
+
+  return { trigger, cancel };
+}
+
 export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
-  const { onLogs, onStats, filter, enabled = true } = options;
+  const { onNotify, enabled = true, debounceMs = DEFAULT_DEBOUNCE_MS } = options;
 
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRef = useRef<{ trigger(): void; cancel(): void } | null>(null);
 
-  // Store latest callbacks and filter in refs to avoid re-connecting on changes
-  const onLogsRef = useRef(onLogs);
-  onLogsRef.current = onLogs;
-  const onStatsRef = useRef(onStats);
-  onStatsRef.current = onStats;
-  const filterRef = useRef(filter);
-  filterRef.current = filter;
+  // Store latest callback in ref to avoid re-connecting on changes
+  const onNotifyRef = useRef(onNotify);
+  onNotifyRef.current = onNotify;
+
+  // Manage debounced notify instance
+  useEffect(() => {
+    debouncedRef.current = createDebouncedNotify(() => {
+      onNotifyRef.current?.();
+    }, debounceMs);
+    return () => {
+      debouncedRef.current?.cancel();
+    };
+  }, [debounceMs]);
 
   const cleanup = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -498,6 +531,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
       wsRef.current.close();
       wsRef.current = null;
     }
+    debouncedRef.current?.cancel();
     setIsConnected(false);
   }, []);
 
@@ -511,19 +545,13 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
 
     ws.onopen = () => {
       setIsConnected(true);
-      // Send initial filter if provided
-      if (filterRef.current) {
-        ws.send(JSON.stringify({ type: "filter", filter: filterRef.current }));
-      }
     };
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string) as WSMessage;
-        if (msg.type === "logs" && onLogsRef.current) {
-          onLogsRef.current(msg.data);
-        } else if (msg.type === "stats" && onStatsRef.current) {
-          onStatsRef.current(msg.data);
+        if (msg.type === "notify") {
+          debouncedRef.current?.trigger();
         }
       } catch {
         // Ignore malformed messages
@@ -552,13 +580,6 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
     }
     return cleanup;
   }, [enabled, connect, cleanup]);
-
-  // Send updated filter when it changes and we're connected
-  useEffect(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && filter) {
-      wsRef.current.send(JSON.stringify({ type: "filter", filter }));
-    }
-  }, [filter]);
 
   const disconnect = useCallback(() => {
     cleanup();
