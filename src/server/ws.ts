@@ -1,81 +1,4 @@
 import type { Ingester } from "./ingester";
-import type { LogDatabase } from "./db";
-import type {
-  NormalizedLog,
-  LogStats,
-  WSFilter,
-} from "../types";
-
-// ---------------------------------------------------------------------------
-// Filter matching (pure function, exported for testing)
-// ---------------------------------------------------------------------------
-
-/**
- * Check whether a log entry matches the given filter criteria.
- * All present filter fields must match (AND logic).
- * Empty/undefined filter matches everything.
- */
-export function matchesFilter(log: NormalizedLog, filter: WSFilter): boolean {
-  if (filter.level && filter.level.length > 0 && !filter.level.map(l => l.toUpperCase()).includes(log.level?.toUpperCase() as any)) {
-    return false;
-  }
-  if (filter.service && filter.service.length > 0 && !filter.service.includes(log.service ?? "")) {
-    return false;
-  }
-  if (filter.host && filter.host.length > 0 && !filter.host.includes(log.host ?? "")) {
-    return false;
-  }
-  if (filter.source && filter.source.length > 0 && !filter.source.includes(log.source)) {
-    return false;
-  }
-  if (filter.search !== undefined && filter.search !== "") {
-    const needle = filter.search.toLowerCase();
-    if (!log.message?.toLowerCase().includes(needle)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// ---------------------------------------------------------------------------
-// Log serialization (NormalizedLog -> LogEntry-like JSON-safe object)
-// ---------------------------------------------------------------------------
-
-function serializeLog(log: NormalizedLog) {
-  let rawParsed: Record<string, unknown>;
-  try {
-    rawParsed = JSON.parse(log._raw);
-  } catch {
-    rawParsed = {};
-  }
-
-  return {
-    _id: String(log._id),
-    _ingested: log._ingested.toISOString(),
-    _raw: rawParsed,
-    timestamp: log.timestamp?.toISOString() ?? null,
-    level: log.level,
-    message: log.message,
-    service: log.service,
-    trace_id: log.trace_id,
-    host: log.host,
-    duration_ms: log.duration_ms,
-    source: log.source,
-  };
-}
-
-function serializeStats(stats: LogStats) {
-  return {
-    total: stats.total,
-    byLevel: stats.byLevel,
-    errorRate: stats.errorRate,
-    timeRange: {
-      min: stats.timeRange.min?.toISOString() ?? null,
-      max: stats.timeRange.max?.toISOString() ?? null,
-    },
-    ingestionRate: stats.ingestionRate,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // WSHandler class
@@ -88,14 +11,16 @@ interface WSLike {
   readyState: number;
 }
 
+const NOTIFY_MESSAGE = JSON.stringify({ type: "notify" as const });
+
 /**
- * Manages WebSocket client connections and their per-client filters.
- * Subscribes to Ingester "batch" events and broadcasts filtered logs
- * and stats to connected clients.
+ * Manages WebSocket client connections.
+ * Subscribes to Ingester "batch" events and broadcasts a notify message
+ * to all connected clients when new logs arrive.
+ * Clients are expected to fetch logs via REST API upon notification.
  */
 export class WSHandler {
-  private clients: Map<WSLike, WSFilter> = new Map();
-  private db: LogDatabase | null = null;
+  private clients: Set<WSLike> = new Set();
 
   /** Number of currently connected clients */
   get clientCount(): number {
@@ -103,102 +28,40 @@ export class WSHandler {
   }
 
   /**
-   * Set the LogDatabase reference for stats retrieval during broadcast.
+   * No-op. Previously used to set the LogDatabase for stats retrieval.
+   * Retained for backward compatibility with callers; will be removed
+   * when cli/index.ts and dev-init.ts are updated.
+   * @deprecated No longer needed; broadcast sends notify-only messages.
    */
-  setDatabase(db: LogDatabase): void {
-    this.db = db;
+  setDatabase(_db: unknown): void {
+    // intentionally empty
   }
 
   /**
    * Subscribe to an Ingester's "batch" event.
-   * When a batch is ingested, broadcasts matching logs to clients.
+   * When a batch is ingested, broadcasts a notify message to all clients.
    */
   subscribe(ingester: Ingester): void {
-    ingester.on("batch", async (logs: ReadonlyArray<NormalizedLog>) => {
-      let stats: LogStats | null = null;
-      if (this.db) {
-        try {
-          stats = await this.db.getStats();
-        } catch {
-          // If stats retrieval fails, send logs without stats
-        }
-      }
-      if (stats) {
-        // Merge ingestion rate from the ingester
-        const ingestionStats = ingester.getIngestionStats();
-        stats.ingestionRate = ingestionStats.ingestionRate;
-        this.broadcast([...logs], stats);
-      }
+    ingester.on("batch", () => {
+      this.broadcast();
     });
   }
 
   /**
    * Handle a new WebSocket connection.
-   * Registers the client with an empty (match-all) filter.
+   * Registers the client.
    */
   handleConnection(ws: WSLike): void {
-    this.clients.set(ws, {});
+    this.clients.add(ws);
   }
 
   /**
    * Handle a message from a WebSocket client.
-   * Expects JSON messages of type WSClientMessage.
-   * Invalid messages are silently ignored.
+   * All messages are ignored (filter messages are no longer processed).
    */
-  handleMessage(ws: WSLike, message: string): void {
-    // Ignore messages from unregistered clients
-    if (!this.clients.has(ws)) return;
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(message);
-    } catch {
-      // Invalid JSON - ignore
-      return;
-    }
-
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return;
-    }
-
-    const msg = parsed as Record<string, unknown>;
-
-    if (msg.type !== "filter") {
-      return;
-    }
-
-    if (typeof msg.filter !== "object" || msg.filter === null || Array.isArray(msg.filter)) {
-      return;
-    }
-
-    const filterObj = msg.filter as Record<string, unknown>;
-    const filter: WSFilter = {};
-
-    if (Array.isArray(filterObj.level)) {
-      filter.level = filterObj.level.filter((v): v is string => typeof v === "string") as WSFilter["level"];
-    } else if (typeof filterObj.level === "string") {
-      filter.level = [filterObj.level] as WSFilter["level"];
-    }
-    if (Array.isArray(filterObj.service)) {
-      filter.service = filterObj.service.filter((v): v is string => typeof v === "string");
-    } else if (typeof filterObj.service === "string") {
-      filter.service = [filterObj.service];
-    }
-    if (Array.isArray(filterObj.host)) {
-      filter.host = filterObj.host.filter((v): v is string => typeof v === "string");
-    } else if (typeof filterObj.host === "string") {
-      filter.host = [filterObj.host];
-    }
-    if (Array.isArray(filterObj.source)) {
-      filter.source = filterObj.source.filter((v): v is string => typeof v === "string");
-    } else if (typeof filterObj.source === "string") {
-      filter.source = [filterObj.source];
-    }
-    if (typeof filterObj.search === "string") {
-      filter.search = filterObj.search;
-    }
-
-    this.clients.set(ws, filter);
+  handleMessage(_ws: WSLike, _message: string): void {
+    // All client messages are ignored.
+    // Filter processing has been removed; filtering is done server-side via REST API.
   }
 
   /**
@@ -210,43 +73,15 @@ export class WSHandler {
   }
 
   /**
-   * Get the current filter for a client.
-   * Returns undefined if the client is not registered.
+   * Broadcast a notify message to all connected clients.
+   * Sends { type: "notify" } to inform clients that new logs are available.
+   * Clients should fetch updated data via REST API.
    */
-  getClientFilter(ws: WSLike): WSFilter | undefined {
-    return this.clients.get(ws);
-  }
-
-  /**
-   * Broadcast new logs and stats to all connected clients.
-   * Logs are filtered per-client based on their active filter.
-   * Stats are always sent to all clients.
-   * If no logs match a client's filter, only stats are sent.
-   */
-  broadcast(logs: ReadonlyArray<NormalizedLog>, stats: LogStats): void {
-    const serializedStats = JSON.stringify({
-      type: "stats" as const,
-      data: serializeStats(stats),
-    });
-
-    for (const [ws, filter] of this.clients) {
+  broadcast(): void {
+    for (const ws of this.clients) {
       // Skip clients that are not in OPEN state
       if (ws.readyState !== 1) continue;
-
-      // Filter logs for this client
-      const matched = logs.filter((log) => matchesFilter(log, filter));
-
-      // Send logs only if there are matching entries
-      if (matched.length > 0) {
-        const logsMessage = JSON.stringify({
-          type: "logs" as const,
-          data: matched.map(serializeLog),
-        });
-        ws.send(logsMessage);
-      }
-
-      // Always send stats
-      ws.send(serializedStats);
+      ws.send(NOTIFY_MESSAGE);
     }
   }
 }
