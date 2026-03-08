@@ -151,24 +151,8 @@ export function resolveField(fieldName: string): string | null {
 
 // --- WebSocket Protocol ---
 
-export type WSFilter = {
-  level?: LogLevel[];
-  service?: string[];
-  host?: string[];
-  source?: string[];
-  search?: string;
-};
-
-// Client -> Server
-export type WSClientMessage = {
-  type: "filter";
-  filter: WSFilter;
-};
-
-// Server -> Client
-export type WSServerMessage =
-  | { type: "logs"; data: LogEntry[] }
-  | { type: "stats"; data: LogStats };
+// Server -> Client (notify-only; log data is fetched via REST API)
+export type WSServerMessage = { type: "notify" };
 
 // --- Error Response ---
 

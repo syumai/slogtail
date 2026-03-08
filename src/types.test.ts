@@ -13,9 +13,7 @@ import type {
   FacetDistribution,
   FacetDefinition,
   SchemaColumn,
-  WSClientMessage,
   WSServerMessage,
-  WSFilter,
   ErrorResponse,
   ErrorCode,
   LogLevel,
@@ -23,6 +21,7 @@ import type {
   CLIOptions,
   FieldMapping,
 } from "./types";
+import * as TypesModule from "./types";
 
 describe("FIELD_MAPPINGS", () => {
   it("contains timestamp field candidates", () => {
@@ -315,60 +314,18 @@ describe("Type compatibility", () => {
     expect(col.nullable).toBe(true);
   });
 
-  it("WSClientMessage filter message", () => {
-    const msg: WSClientMessage = {
-      type: "filter",
-      filter: { level: ["ERROR"], service: ["api"] },
-    };
-    expect(msg.type).toBe("filter");
+  it("WSFilter is no longer exported", () => {
+    expect("WSFilter" in TypesModule).toBe(false);
   });
 
-  it("WSClientMessage filter with source", () => {
-    const msg: WSClientMessage = {
-      type: "filter",
-      filter: { level: ["WARN"], source: ["worker"] },
-    };
-    expect(msg.filter.source).toEqual(["worker"]);
+  it("WSClientMessage is no longer exported", () => {
+    expect("WSClientMessage" in TypesModule).toBe(false);
   });
 
-  it("WSFilter can be used independently", () => {
-    const filter: WSFilter = {
-      level: ["DEBUG"],
-      service: ["auth"],
-      source: ["process-1"],
-    };
-    expect(filter.level).toEqual(["DEBUG"]);
-    expect(filter.service).toEqual(["auth"]);
-    expect(filter.source).toEqual(["process-1"]);
-  });
-
-  it("WSFilter can be empty", () => {
-    const filter: WSFilter = {};
-    expect(filter.level).toBeUndefined();
-    expect(filter.service).toBeUndefined();
-    expect(filter.source).toBeUndefined();
-  });
-
-  it("WSServerMessage logs variant", () => {
-    const msg: WSServerMessage = {
-      type: "logs",
-      data: [],
-    };
-    expect(msg.type).toBe("logs");
-  });
-
-  it("WSServerMessage stats variant", () => {
-    const msg: WSServerMessage = {
-      type: "stats",
-      data: {
-        total: 100,
-        byLevel: { INFO: 80, ERROR: 20 },
-        errorRate: 0.2,
-        timeRange: { min: new Date(), max: new Date() },
-        ingestionRate: 0,
-      },
-    };
-    expect(msg.type).toBe("stats");
+  it("WSServerMessage is notify-only", () => {
+    const msg: WSServerMessage = { type: "notify" };
+    expect(msg.type).toBe("notify");
+    expect(Object.keys(msg)).toEqual(["type"]);
   });
 
   it("ErrorResponse has correct shape", () => {
