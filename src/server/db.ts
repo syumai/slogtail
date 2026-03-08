@@ -647,7 +647,8 @@ function buildFilterConditions(params: Partial<LogQueryParams>): string[] {
   }
   if (params.jsonFilters) {
     for (const [jsonPath, values] of Object.entries(params.jsonFilters)) {
-      const expr = `CAST(json_extract(_raw, '${escapeSql("$." + jsonPath)}') AS VARCHAR)`;
+      // Use json_extract_string (->>) to get unquoted string values for comparison
+      const expr = `CAST(json_extract_string(_raw, '${escapeSql("$." + jsonPath)}') AS VARCHAR)`;
       if (values.length > 0) {
         conditions.push(buildArrayCondition(expr, values));
       }

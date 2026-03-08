@@ -400,6 +400,163 @@ describe("GET /api/logs", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 7.1 - Integration: _raw data integrity, combined filters, order + limit
+// ---------------------------------------------------------------------------
+
+describe("GET /api/logs - Task 7.1 integration", () => {
+  let intDb: LogDatabase;
+  let intApp: ReturnType<typeof createApiApp>;
+
+  // Raw JSON objects used during ingestion -- kept for assertion
+  const rawJsonObjects = [
+    { message: "request started", level: "INFO", service: "api", host: "host-a", timestamp: "2026-01-15T10:00:00Z", metadata: { region: "us-east" } },
+    { message: "connection failed", level: "ERROR", service: "api", host: "host-a", timestamp: "2026-01-15T10:01:00Z", metadata: { region: "us-east" } },
+    { message: "slow query detected", level: "WARN", service: "worker", host: "host-b", timestamp: "2026-01-15T10:02:00Z", metadata: { region: "eu-west" } },
+    { message: "task completed", level: "INFO", service: "worker", host: "host-b", timestamp: "2026-01-15T10:03:00Z", metadata: { region: "eu-west" } },
+    { message: "timeout error", level: "ERROR", service: "api", host: "host-a", timestamp: "2026-01-15T10:04:00Z", metadata: { region: "us-east" } },
+  ];
+
+  beforeAll(async () => {
+    intDb = new LogDatabase();
+    await intDb.initialize(":memory:");
+
+    // Use Ingester to insert logs (same pipeline as production)
+    const ingester = new Ingester(intDb, {
+      batchSize: 5000,
+      flushIntervalMs: 500,
+      maxRows: 100_000,
+      defaultSource: "default",
+    });
+    ingester.startTimer();
+
+    // Feed raw JSON lines through the Ingester
+    const lines = rawJsonObjects.map((obj) => JSON.stringify(obj));
+    ingester.ingestLines(lines);
+    await ingester.stop();
+
+    intApp = createApiApp(intDb);
+  });
+
+  afterAll(async () => {
+    if (intDb) await intDb.close();
+  });
+
+  const baseStartTime = "startTime=2026-01-15T09:00:00Z";
+
+  // --- _raw column data integrity (Req 4.1, 4.3) ---
+
+  it("returns _raw that matches the original ingested JSON", async () => {
+    const res = await intApp.request(`/api/logs?${baseStartTime}&order=asc&limit=5`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.logs).toHaveLength(5);
+
+    for (let i = 0; i < body.logs.length; i++) {
+      const returned_raw = body.logs[i]._raw;
+      const original = rawJsonObjects[i];
+
+      // Verify all original keys are present and values match
+      for (const [key, value] of Object.entries(original)) {
+        if (typeof value === "object" && value !== null) {
+          expect(returned_raw[key]).toEqual(value);
+        } else {
+          expect(returned_raw[key]).toBe(value);
+        }
+      }
+    }
+  });
+
+  it("preserves nested JSON structure in _raw", async () => {
+    const res = await intApp.request(`/api/logs?${baseStartTime}&order=asc&limit=1`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const raw = body.logs[0]._raw;
+    expect(raw.metadata).toBeDefined();
+    expect(raw.metadata.region).toBe("us-east");
+  });
+
+  // --- All filter conditions combined in DuckDB WHERE clause (Req 1.4) ---
+
+  it("filters by host parameter", async () => {
+    const res = await intApp.request(`/api/logs?${baseStartTime}&host=host-a`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.total).toBe(3);
+    expect(body.logs.every((l: { host: string }) => l.host === "host-a")).toBe(true);
+  });
+
+  it("filters by jsonFilters parameter", async () => {
+    const jsonFilters = encodeURIComponent(JSON.stringify({ "metadata.region": ["eu-west"] }));
+    const res = await intApp.request(`/api/logs?${baseStartTime}&jsonFilters=${jsonFilters}`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.total).toBe(2);
+    // Both eu-west logs are from worker service on host-b
+    expect(body.logs.every((l: { service: string }) => l.service === "worker")).toBe(true);
+  });
+
+  it("combines all filter conditions: level + service + host + source + search + jsonFilters", async () => {
+    const jsonFilters = encodeURIComponent(JSON.stringify({ "metadata.region": ["us-east"] }));
+    const res = await intApp.request(
+      `/api/logs?${baseStartTime}&level=ERROR&service=api&host=host-a&source=default&search=timeout&jsonFilters=${jsonFilters}`
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Only "timeout error" matches all conditions
+    expect(body.total).toBe(1);
+    expect(body.logs[0].message).toBe("timeout error");
+    expect(body.logs[0].level).toBe("ERROR");
+    expect(body.logs[0].service).toBe("api");
+    expect(body.logs[0].host).toBe("host-a");
+    expect(body.logs[0].source).toBe("default");
+  });
+
+  // --- Order direction affects which logs are returned at limit (Req 3.2) ---
+
+  it("returns oldest logs when order=asc with small limit", async () => {
+    const res = await intApp.request(`/api/logs?${baseStartTime}&order=asc&limit=2`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.logs).toHaveLength(2);
+    expect(body.total).toBe(5); // Total matches but only 2 returned
+    // asc: should return the 2 oldest logs
+    expect(body.logs[0].message).toBe("request started");
+    expect(body.logs[1].message).toBe("connection failed");
+  });
+
+  it("returns newest logs when order=desc with small limit", async () => {
+    const res = await intApp.request(`/api/logs?${baseStartTime}&order=desc&limit=2`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.logs).toHaveLength(2);
+    expect(body.total).toBe(5); // Total matches but only 2 returned
+    // desc: should return the 2 newest logs
+    expect(body.logs[0].message).toBe("timeout error");
+    expect(body.logs[1].message).toBe("task completed");
+  });
+
+  it("order direction determines which logs are returned when hitting limit", async () => {
+    // With limit=3, asc returns first 3, desc returns last 3
+    const ascRes = await intApp.request(`/api/logs?${baseStartTime}&order=asc&limit=3`);
+    const descRes = await intApp.request(`/api/logs?${baseStartTime}&order=desc&limit=3`);
+    const ascBody = await ascRes.json();
+    const descBody = await descRes.json();
+
+    // Both report the same total
+    expect(ascBody.total).toBe(5);
+    expect(descBody.total).toBe(5);
+
+    // asc returns oldest 3
+    const ascMessages = ascBody.logs.map((l: { message: string }) => l.message);
+    expect(ascMessages).toEqual(["request started", "connection failed", "slow query detected"]);
+
+    // desc returns newest 3
+    const descMessages = descBody.logs.map((l: { message: string }) => l.message);
+    expect(descMessages).toEqual(["timeout error", "task completed", "slow query detected"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 4.2 - POST /api/query
 // ---------------------------------------------------------------------------
 
