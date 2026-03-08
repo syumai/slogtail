@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useStats, useWebSocket } from "../api";
 import type { SerializedLogStats } from "../api";
 import { formatLocalDateTimeTruncated } from "../formatTime";
@@ -159,24 +159,10 @@ const timeRangeStyle: React.CSSProperties = {
 export function StatsBar() {
   const [filters] = useFilters();
   const { stats: apiStats, isLoading, refetch } = useStats(filters.source.length === 1 ? filters.source[0] : undefined);
-  const [liveStats, setLiveStats] = useState<SerializedLogStats | null>(null);
 
-  const handleStats = useCallback((stats: SerializedLogStats) => {
-    setLiveStats(stats);
-  }, []);
-
-  const wsFilter = useMemo(
-    () => ({
-      level: filters.level,
-      service: filters.service,
-      source: filters.source,
-    }),
-    [filters.level, filters.service, filters.source],
-  );
-
+  // Use WebSocket notify to trigger stats refetch during live tail
   const { isConnected } = useWebSocket({
-    onStats: handleStats,
-    filter: wsFilter,
+    onNotify: refetch,
     enabled: filters.isLiveTail,
   });
 
@@ -195,7 +181,7 @@ export function StatsBar() {
     return () => clearInterval(interval);
   }, [filters.isLiveTail, isConnected, refetch]);
 
-  const stats = resolveDisplayStats(filters.isLiveTail, liveStats, apiStats);
+  const stats = resolveDisplayStats(filters.isLiveTail, null, apiStats);
 
   if (isLoading && !stats) {
     return (

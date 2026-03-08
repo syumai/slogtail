@@ -1,8 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useLogs, useWebSocket } from "../api";
-import type { SerializedLogEntry } from "../api";
+import type { SerializedLogEntry, UseWebSocketOptions } from "../api";
 import { useFilters } from "../store";
-import type { LogLevel } from "../../types";
 import { LogRow } from "./LogRow";
 import { LogDetailPanel } from "./LogDetailPanel";
 import { Pagination } from "./Pagination";
@@ -152,10 +151,47 @@ const loadingStyle: React.CSSProperties = {
 };
 
 // ---------------------------------------------------------------------------
-// Component
+// Exported pure functions (testable without React rendering)
 // ---------------------------------------------------------------------------
 
-const MAX_LIVE_LOGS = 500;
+/**
+ * Task 5.1: Returns apiLogs directly without any client-side filtering, merging, or dedup.
+ * All filtering is handled server-side by DuckDB.
+ */
+export function resolveDisplayLogs(apiLogs: SerializedLogEntry[]): SerializedLogEntry[] {
+  return apiLogs;
+}
+
+/**
+ * Task 5.2: Build UseWebSocketOptions connecting onNotify to refetch.
+ * No onLogs, filter, or onStats properties are included.
+ */
+export function resolveWebSocketOptions(
+  refetch: () => void,
+  enabled: boolean,
+): UseWebSocketOptions {
+  return {
+    onNotify: refetch,
+    enabled,
+  };
+}
+
+/**
+ * Task 5.3: Resolve toolbar status text.
+ * Always shows total results count from the server (no client-side liveLogs count).
+ */
+export function resolveToolbarStatus(params: {
+  isLiveTail: boolean;
+  isConnected: boolean;
+  total: number;
+}): string {
+  const { total } = params;
+  return `${total.toLocaleString()} results`;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 interface LogViewerProps {
   /** Ref to the search input element, used by keyboard navigation (/ key). */
@@ -284,53 +320,12 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
 
   const { logs: apiLogs, total, isLoading, error, refetch } = useLogs(queryFilters);
 
-  // Live tail state
-  const [liveLogs, setLiveLogs] = useState<SerializedLogEntry[]>([]);
-
-  const handleLiveLogs = useCallback((newLogs: SerializedLogEntry[]) => {
-    setLiveLogs((prev) => {
-      const merged = [...newLogs, ...prev];
-      return merged.slice(0, MAX_LIVE_LOGS);
-    });
-  }, []);
-
-  const wsFilter = useMemo(
-    () => ({
-      level: filters.level.length > 0 ? filters.level : undefined,
-      service: filters.service.length > 0 ? filters.service : undefined,
-      host: filters.host.length > 0 ? filters.host : undefined,
-      source: filters.source.length > 0 ? filters.source : undefined,
-      search: filters.search,
-    }),
-    [filters.level, filters.service, filters.host, filters.source, filters.search],
+  // Task 5.2: Connect WebSocket onNotify to useLogs refetch
+  const wsOptions = useMemo(
+    () => resolveWebSocketOptions(refetch, filters.isLiveTail),
+    [refetch, filters.isLiveTail],
   );
-
-  const { isConnected } = useWebSocket({
-    onLogs: handleLiveLogs,
-    filter: wsFilter,
-    enabled: filters.isLiveTail,
-  });
-
-  // Clear live logs when live tail is toggled off
-  useEffect(() => {
-    if (!filters.isLiveTail) {
-      setLiveLogs([]);
-    }
-  }, [filters.isLiveTail]);
-
-  // Polling fallback: when live tail is on but WebSocket is unavailable (e.g. Vite dev server),
-  // periodically refetch logs via REST API
-  useEffect(() => {
-    if (!filters.isLiveTail || isConnected) return;
-
-    refetch();
-
-    const interval = setInterval(() => {
-      refetch();
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [filters.isLiveTail, isConnected, refetch]);
+  const { isConnected } = useWebSocket(wsOptions);
 
   const handleSortToggle = useCallback(() => {
     actions.setOrder(filters.order === "desc" ? "asc" : "desc");
@@ -370,53 +365,8 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     [setColumnWidth],
   );
 
-  // When live tail is on: use WebSocket logs if connected, otherwise use polled API logs.
-  // Apply client-side filtering for live tail logs to ensure all active filters are respected.
-  const displayLogs = useMemo(() => {
-    // When live tail is off, or WS is not connected, just use apiLogs
-    const baseLogs = filters.isLiveTail
-      ? (isConnected
-          ? (() => {
-              // Merge liveLogs (newest first) with apiLogs, dedup by _id
-              const seen = new Set(liveLogs.map((l) => l._id));
-              const deduped = [...liveLogs, ...apiLogs.filter((l) => !seen.has(l._id))];
-              return deduped;
-            })()
-          : apiLogs)
-      : apiLogs;
-
-    if (!filters.isLiveTail || !isConnected) return baseLogs;
-
-    return baseLogs.filter((log) => {
-      if (filters.level.length > 0) {
-        const normalizedLevel = log.level?.toUpperCase();
-        if (!normalizedLevel || !filters.level.includes(normalizedLevel as LogLevel)) return false;
-      }
-      if (filters.service.length > 0 && !filters.service.includes(log.service ?? "")) return false;
-      if (filters.host.length > 0 && !filters.host.includes(log.host ?? "")) return false;
-      if (filters.source.length > 0 && !filters.source.includes(log.source)) return false;
-      if (filters.search) {
-        const needle = filters.search.toLowerCase();
-        if (!log.message?.toLowerCase().includes(needle)) return false;
-      }
-      // Custom JSON facet filters
-      for (const [jsonPath, expectedValues] of Object.entries(filters.jsonFilters)) {
-        const raw = log._raw;
-        if (typeof raw !== "object" || raw === null) return false;
-        const segments = jsonPath.split(".");
-        let current: unknown = raw;
-        for (const seg of segments) {
-          if (typeof current !== "object" || current === null) {
-            current = undefined;
-            break;
-          }
-          current = (current as Record<string, unknown>)[seg];
-        }
-        if (!expectedValues.includes(String(current))) return false;
-      }
-      return true;
-    });
-  }, [filters.isLiveTail, isConnected, liveLogs, apiLogs, filters.level, filters.service, filters.host, filters.source, filters.search, filters.jsonFilters]);
+  // Task 5.1: Use REST API response as sole data source (no client-side filtering)
+  const displayLogs = resolveDisplayLogs(apiLogs);
 
   const sortedLogs = useMemo(() => {
     if (!sortState.column) return displayLogs;
@@ -447,12 +397,12 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     return sortedLogs.findIndex((l) => l._id === selectedLogId);
   }, [selectedLogId, sortedLogs]);
 
-  // Auto-scroll to top on new live logs, unless detail panel is open.
+  // Auto-scroll to top on new logs during live tail, unless detail panel is open.
   useEffect(() => {
-    if (filters.isLiveTail && selectedLogId === null && liveLogs.length > 0 && listRef.current) {
+    if (filters.isLiveTail && selectedLogId === null && apiLogs.length > 0 && listRef.current) {
       listRef.current.scrollTop = 0;
     }
-  }, [filters.isLiveTail, liveLogs.length, selectedLogId]);
+  }, [filters.isLiveTail, apiLogs.length, selectedLogId]);
 
   // When a row is clicked, toggle selection
   const handleLogSelect = useCallback(
@@ -533,16 +483,9 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
             Sort: {filters.order === "desc" ? "Newest first" : "Oldest first"}{" "}
             {filters.order === "desc" ? "\u2193" : "\u2191"}
           </button>
-          {!filters.isLiveTail && (
-            <span style={{ color: "#999999" }}>
-              {total.toLocaleString()} results
-            </span>
-          )}
-          {filters.isLiveTail && (
-            <span style={{ color: "#999999" }}>
-              {isConnected ? `${liveLogs.length} live logs` : `${total.toLocaleString()} results (polling)`}
-            </span>
-          )}
+          <span style={{ color: "#999999" }}>
+            {resolveToolbarStatus({ isLiveTail: filters.isLiveTail, isConnected, total })}
+          </span>
           {sortState.column && (
             <span style={{ color: "#666666" }}>
               Sorted by {columns.find((column) => column.id === sortState.column)?.label ?? sortState.column}{" "}
@@ -624,7 +567,7 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
       {/* Log list */}
       <div style={listStyle} ref={listRef}>
         {error && <div style={errorStyle}>Error: {error}</div>}
-        {isLoading && !filters.isLiveTail && displayLogs.length === 0 && (
+        {isLoading && displayLogs.length === 0 && (
           <div style={loadingStyle}>Loading...</div>
         )}
         {!isLoading && !error && sortedLogs.length === 0 && (
