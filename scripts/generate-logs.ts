@@ -41,10 +41,18 @@ function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+const MULTILINE_MESSAGES = [
+  "Error: connection refused\n  at connect (net.js:123)\n  at Socket.connect (socket.js:45)\n  at Object.createConnection (http.js:67)",
+  "panic: runtime error: index out of range\ngoroutine 1 [running]:\nmain.main()\n\t/app/main.go:42",
+  "ValidationError: invalid input\n  - field 'email': must be a valid email\n  - field 'age': must be >= 0",
+  '{\n  "error": "timeout",\n  "details": {\n    "endpoint": "/api/users",\n    "method": "GET",\n    "elapsed_ms": 30000\n  },\n  "retry": false\n}',
+  '{\n  "query": "SELECT * FROM orders WHERE id = $1",\n  "params": [42],\n  "rows_affected": 0,\n  "duration": "1.23s"\n}',
+];
+
 function generateLog() {
   const service = pick(SERVICES);
   const level = pick(LEVELS);
-  return {
+  const log: Record<string, unknown> = {
     timestamp: new Date().toISOString(),
     level: Math.random() < 0.5 ? level : level.toLowerCase(),
     message: pick(MESSAGES[service]),
@@ -53,6 +61,10 @@ function generateLog() {
     duration_ms: Math.round(Math.random() * 500 * 100) / 100,
     trace_id: randomUUID(),
   };
+  if (Math.random() < 0.3) {
+    log.detail = pick(MULTILINE_MESSAGES);
+  }
+  return log;
 }
 
 const INVALID_LINES = [

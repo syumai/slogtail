@@ -84,6 +84,7 @@ const fieldNameStyle: React.CSSProperties = {
 const fieldValueStyle: React.CSSProperties = {
   color: "#333333",
   wordBreak: "break-all",
+  whiteSpace: "pre-wrap",
   flex: 1,
 };
 
