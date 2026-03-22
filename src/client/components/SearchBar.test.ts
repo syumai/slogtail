@@ -6,6 +6,7 @@ import {
   parseDatetimeLocal,
   type FilterTag,
 } from "./SearchBar";
+import { formatLocalDateTimeTruncated } from "../formatTime";
 import type { FilterState } from "../store";
 
 // ---------------------------------------------------------------------------
@@ -49,37 +50,34 @@ describe("buildFilterTags", () => {
   });
 
   it("includes a time tag when startTime is set", () => {
-    const filters = makeFilterState({
-      startTime: new Date("2026-01-15T10:00:00Z"),
-    });
+    const startTime = new Date("2026-01-15T10:00:00Z");
+    const filters = makeFilterState({ startTime });
     const tags = buildFilterTags(filters, makeActions());
     const timeTag = tags.find((t: FilterTag) => t.key === "time");
     expect(timeTag).toBeDefined();
-    expect(timeTag!.label).toContain("2026-01-15T10:00:00");
+    expect(timeTag!.label).toContain(formatLocalDateTimeTruncated(startTime));
     expect(timeTag!.label).toContain("*");
   });
 
   it("includes a time tag when endTime is set", () => {
-    const filters = makeFilterState({
-      endTime: new Date("2026-01-15T18:00:00Z"),
-    });
+    const endTime = new Date("2026-01-15T18:00:00Z");
+    const filters = makeFilterState({ endTime });
     const tags = buildFilterTags(filters, makeActions());
     const timeTag = tags.find((t: FilterTag) => t.key === "time");
     expect(timeTag).toBeDefined();
     expect(timeTag!.label).toContain("*");
-    expect(timeTag!.label).toContain("2026-01-15T18:00:00");
+    expect(timeTag!.label).toContain(formatLocalDateTimeTruncated(endTime));
   });
 
   it("includes a time tag with both start and end when both are set", () => {
-    const filters = makeFilterState({
-      startTime: new Date("2026-01-15T10:00:00Z"),
-      endTime: new Date("2026-01-15T18:00:00Z"),
-    });
+    const startTime = new Date("2026-01-15T10:00:00Z");
+    const endTime = new Date("2026-01-15T18:00:00Z");
+    const filters = makeFilterState({ startTime, endTime });
     const tags = buildFilterTags(filters, makeActions());
     const timeTag = tags.find((t: FilterTag) => t.key === "time");
     expect(timeTag).toBeDefined();
-    expect(timeTag!.label).toContain("2026-01-15T10:00:00");
-    expect(timeTag!.label).toContain("2026-01-15T18:00:00");
+    expect(timeTag!.label).toContain(formatLocalDateTimeTruncated(startTime));
+    expect(timeTag!.label).toContain(formatLocalDateTimeTruncated(endTime));
     expect(timeTag!.label).not.toContain("*");
   });
 

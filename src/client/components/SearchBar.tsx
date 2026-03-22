@@ -3,6 +3,7 @@ import type { FilterState } from "../store";
 import { useFilters } from "../store";
 import type { LogLevel } from "../../types";
 import { LOG_LEVELS } from "../../types";
+import { formatLocalDateTimeTruncated } from "../formatTime";
 
 // ---------------------------------------------------------------------------
 // Pure helper functions (exported for testing)
@@ -108,10 +109,10 @@ export function buildFilterTags(
   }
   if (filters.startTime || filters.endTime) {
     const start = filters.startTime
-      ? filters.startTime.toISOString().slice(0, 19)
+      ? formatLocalDateTimeTruncated(filters.startTime)
       : "*";
     const end = filters.endTime
-      ? filters.endTime.toISOString().slice(0, 19)
+      ? formatLocalDateTimeTruncated(filters.endTime)
       : "*";
     tags.push({
       key: "time",

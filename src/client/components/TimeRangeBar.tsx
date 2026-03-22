@@ -123,7 +123,7 @@ export function parseDatetimeLocal(value: string): Date | undefined {
 }
 
 export function inferTimePreset(filters: FilterState): TimePreset {
-  if (filters.isLiveTail && !filters.startTime && !filters.endTime) {
+  if (filters.isLiveTail) {
     return "live";
   }
   if (!filters.startTime || !filters.endTime) {
@@ -153,7 +153,7 @@ export function resolveHistogramBucketCount(
 }
 
 function formatAppliedRange(filters: FilterState): string {
-  if (filters.isLiveTail && !filters.startTime && !filters.endTime) {
+  if (filters.isLiveTail) {
     return "Live tail (latest logs)";
   }
   if (!filters.startTime || !filters.endTime) {
