@@ -22,6 +22,7 @@ export interface UseResizablePanelOptions {
   initialWidth: number;
   minWidth: number;
   maxWidth: number;
+  storageKey?: string;
 }
 
 export interface UseResizablePanelResult {
@@ -33,8 +34,17 @@ export interface UseResizablePanelResult {
 export function useResizablePanel(
   options: UseResizablePanelOptions,
 ): UseResizablePanelResult {
-  const { initialWidth, minWidth, maxWidth } = options;
-  const [width, setWidth] = useState(initialWidth);
+  const { initialWidth, minWidth, maxWidth, storageKey } = options;
+  const [width, setWidth] = useState(() => {
+    if (storageKey) {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = Number(stored);
+        if (!Number.isNaN(parsed)) return clampWidth(parsed, minWidth, maxWidth);
+      }
+    }
+    return initialWidth;
+  });
   const [isResizing, setIsResizing] = useState(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(initialWidth);
@@ -75,6 +85,14 @@ export function useResizablePanel(
       document.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isResizing, minWidth, maxWidth]);
+
+  const prevIsResizingRef = useRef(false);
+  useEffect(() => {
+    if (prevIsResizingRef.current && !isResizing && storageKey) {
+      localStorage.setItem(storageKey, String(width));
+    }
+    prevIsResizingRef.current = isResizing;
+  }, [isResizing, storageKey, width]);
 
   return { width, isResizing, handleMouseDown };
 }

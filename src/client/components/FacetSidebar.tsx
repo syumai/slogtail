@@ -14,7 +14,6 @@ const DEFAULT_FACETS: FacetDefinition[] = [
   { field: "level", displayName: "Level", jsonPath: null, isDefault: true },
   { field: "service", displayName: "Service", jsonPath: null, isDefault: true },
   { field: "host", displayName: "Host", jsonPath: null, isDefault: true },
-  { field: "source", displayName: "Source", jsonPath: null, isDefault: true },
 ];
 
 // ---------------------------------------------------------------------------

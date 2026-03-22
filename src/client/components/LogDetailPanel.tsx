@@ -6,7 +6,7 @@ import { useResizablePanel } from "./useResizablePanel";
 // Styles
 // ---------------------------------------------------------------------------
 
-const DEFAULT_PANEL_WIDTH = 480;
+const DEFAULT_PANEL_WIDTH = 640;
 const MIN_PANEL_WIDTH = 300;
 const MAX_PANEL_WIDTH = 1200;
 
@@ -256,6 +256,7 @@ export const LogDetailPanel = memo(function LogDetailPanel({
     initialWidth: DEFAULT_PANEL_WIDTH,
     minWidth: MIN_PANEL_WIDTH,
     maxWidth: MAX_PANEL_WIDTH,
+    storageKey: "slogtail:detail-panel-width",
   });
 
   // Keep last log for smooth slide-out animation

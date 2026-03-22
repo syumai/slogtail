@@ -68,15 +68,6 @@ const DEFAULT_COLUMNS: ReadonlyArray<ColumnDefinition> = [
     visible: true,
     jsonPath: null,
   },
-  {
-    id: "source",
-    field: "source",
-    label: "Source",
-    width: 100,
-    minWidth: 60,
-    visible: true,
-    jsonPath: null,
-  },
 ];
 
 const DEFAULT_COLUMN_IDS = new Set(DEFAULT_COLUMNS.map((col) => col.id));

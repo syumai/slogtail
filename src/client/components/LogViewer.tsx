@@ -282,8 +282,8 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
   const fallbackSearchInputRef = useRef<HTMLInputElement | null>(null);
   const effectiveSearchInputRef = searchInputRef ?? fallbackSearchInputRef;
   const [sortState, setSortState] = useState<SortState>({
-    column: null,
-    direction: "asc",
+    column: "timestamp",
+    direction: "desc",
   });
   const [isColumnSettingsOpen, setColumnSettingsOpen] = useState(false);
   const [hoveredResizeColumnId, setHoveredResizeColumnId] = useState<string | null>(null);
@@ -326,10 +326,6 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
     [refetch, filters.isLiveTail],
   );
   const { isConnected } = useWebSocket(wsOptions);
-
-  const handleSortToggle = useCallback(() => {
-    actions.setOrder(filters.order === "desc" ? "asc" : "desc");
-  }, [filters.order, actions]);
 
   const handleLiveTailToggle = useCallback(() => {
     actions.toggleLiveTail();
@@ -487,10 +483,6 @@ export function LogViewer({ searchInputRef }: LogViewerProps = {}) {
       {/* Toolbar */}
       <div style={toolbarStyle}>
         <div style={toolbarLeftStyle}>
-          <button style={sortButtonStyle} onClick={handleSortToggle}>
-            Sort: {filters.order === "desc" ? "Newest first" : "Oldest first"}{" "}
-            {filters.order === "desc" ? "\u2193" : "\u2191"}
-          </button>
           <span style={{ color: "#999999" }}>
             {resolveToolbarStatus({ isLiveTail: filters.isLiveTail, isConnected, total })}
           </span>
