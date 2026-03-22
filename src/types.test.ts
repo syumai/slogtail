@@ -388,11 +388,9 @@ describe("Type compatibility", () => {
       maxRows: 100000,
       batchSize: 5000,
       db: ":memory:",
-      noUi: false,
     };
     expect(opts.port).toBe(8080);
     expect(opts.db).toBe(":memory:");
-    expect(opts.noUi).toBe(false);
   });
 
   it("FieldMapping type is compatible with FIELD_MAPPINGS", () => {

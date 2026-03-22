@@ -41,7 +41,6 @@ Options:
   -m, --max-rows <n>      Maximum rows to keep (default: 100000)
       --batch-size <n>    Batch INSERT size (default: 5000)
       --db <path>         DuckDB persistence path (default: :memory:)
-      --no-ui             Disable Web UI, API server only
   -h, --help              Show this help message
 ```
 

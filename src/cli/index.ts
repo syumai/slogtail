@@ -26,7 +26,6 @@ export function parseCLIArgs(args: string[]): ParsedCLIOptions {
       "max-rows": { type: "string", short: "m" },
       "batch-size": { type: "string" },
       db: { type: "string" },
-      "no-ui": { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
     strict: true,
@@ -43,7 +42,6 @@ export function parseCLIArgs(args: string[]): ParsedCLIOptions {
         ? parseInt(values["batch-size"], 10)
         : 5000,
     db: values.db ?? ":memory:",
-    noUi: values["no-ui"] ?? false,
   };
 
   if (values.help) {
@@ -70,13 +68,11 @@ Server Options:
   -m, --max-rows <n>      Maximum rows to keep (default: 100000)
       --batch-size <n>    Batch INSERT size (default: 5000)
       --db <path>         DuckDB persistence path (default: :memory:)
-      --no-ui             Disable Web UI, API server only
   -h, --help              Show this help message
 
 Examples:
   kubectl logs -f deploy/api | slogtail --port 8080
   cat app.log | slogtail --db ./logs.duckdb
-  docker logs -f myapp | slogtail --no-ui -p 9090
   kubectl logs -f deploy/api | slogtail relay --service api
   docker logs -f myapp | slogtail relay -s myapp -u http://localhost:8080
 `.trimStart();
@@ -143,10 +139,8 @@ async function main(): Promise<void> {
       })),
     );
 
-    // Add static file serving if UI is enabled
-    if (!opts.noUi) {
-      app.use("/static/*", serveStatic({ root: import.meta.dirname }));
-    }
+    // Add static file serving
+    app.use("/static/*", serveStatic({ root: import.meta.dirname }));
   });
 
   // Now that fullApp exists, update the reference for injectWebSocket

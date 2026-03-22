@@ -189,5 +189,4 @@ export interface CLIOptions {
   maxRows: number;
   batchSize: number;
   db: string;
-  noUi: boolean;
 }

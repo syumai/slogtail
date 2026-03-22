@@ -13,7 +13,6 @@ describe("parseCLIArgs", () => {
       maxRows: 100_000,
       batchSize: 5000,
       db: ":memory:",
-      noUi: false,
     });
   });
 
@@ -64,20 +63,6 @@ describe("parseCLIArgs", () => {
   });
 
   // -------------------------------------------------------------------------
-  // --no-ui flag
-  // -------------------------------------------------------------------------
-
-  it("parses --no-ui flag", () => {
-    const opts = parseCLIArgs(["--no-ui"]);
-    expect(opts.noUi).toBe(true);
-  });
-
-  it("defaults noUi to false when --no-ui is not provided", () => {
-    const opts = parseCLIArgs([]);
-    expect(opts.noUi).toBe(false);
-  });
-
-  // -------------------------------------------------------------------------
   // Combined options
   // -------------------------------------------------------------------------
 
@@ -87,14 +72,12 @@ describe("parseCLIArgs", () => {
       "-m", "200000",
       "--batch-size", "2000",
       "--db", "./data.db",
-      "--no-ui",
     ]);
     expect(opts).toEqual({
       port: 4000,
       maxRows: 200_000,
       batchSize: 2000,
       db: "./data.db",
-      noUi: true,
     });
   });
 
